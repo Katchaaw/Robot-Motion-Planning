@@ -9,15 +9,24 @@ type point = coord2D
 type vector = coord2D
 type angle = float
 
+(* translate : vector -> point -> point *)
+(* Renvoie le point résultant de la translation entre un vecteur et un point. *)
 let translate (v: vector) (p: point) : point = 
   { x = p.x +. v.x; y = p.y +. v.y }
 
+(* rad_of_deg : angle -> angle *)
+(* Convertit un angle en degrés, en radians. *)
 let rad_of_deg (deg: angle) : angle = 
   deg *. Float.pi /. 180.0
   
+(* deg_of_rad : angle -> angle *)
+(* Convertit un angle en radians, en degrés. *)
 let deg_of_rad (rad: angle) : angle = 
   rad *. 180.0 /. Float.pi
 
+(* rotate : point -> angle -> point -> point *)
+(* Renvoie le point résultant de la rotation d'un point autour d'un centre
+   donnés en parmètres. *)
 let rotate (c: point) (alpha: angle) (p: point) : point =
   let theta = rad_of_deg alpha in
   let cos_theta = cos theta in
@@ -25,10 +34,14 @@ let rotate (c: point) (alpha: angle) (p: point) : point =
   { x = c.x +. (p.x -. c.x) *. cos_theta -. (p.y -. c.y) *. sin_theta;
     y = c.y +. (p.x -. c.x) *. sin_theta +. (p.y -. c.y) *. cos_theta }
   
+
 type transformation =
   Translate of vector
 | Rotate of point * angle
 
+(* transform : transformation -> point -> point *)
+(* Renvoie le point résultant de l'application de la transformation 
+   sur le point donnée en paramètre. *)
 let transform (t: transformation) (p: point) : point =
   match t with
   | Translate v -> translate v p
@@ -41,10 +54,14 @@ type rectangle = {
     y_max : float
   }
 
+(* in_rectangle : rectangle -> point -> bool *)
+(* Détermine si un point est à l'intérieur (ou sur le bord) d'un rectangle. *)
 let in_rectangle (r : rectangle) (p : point) : bool =
   p.x >= r.x_min && p.x <= r.x_max &&
   p.y >= r.y_min && p.y <= r.y_max
 
+(* corners : rectangle -> point list *)
+(* Renvoie la liste de ses quatre sommets d'un rectangle. *)
 let corners (r :rectangle) : point list =
   let down_left = {x = r.x_min ; y = r.y_min} in
   let down_right = {x = r.x_max ; y = r.y_min} in
@@ -52,6 +69,8 @@ let corners (r :rectangle) : point list =
   let up_right = {x = r.x_max ; y = r.y_max} in
   [down_left; down_right ; up_left; up_right]
   
+(* rectangle_of_list : point list -> rectangle *)
+(* Renvoie le plus petit rectangle contenant tous les points de la liste. *)
 let rectangle_of_list (pl : point list) : rectangle = 
   match pl with
   |[] -> failwith "La liste de points est vide"
