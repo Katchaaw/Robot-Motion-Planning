@@ -1,26 +1,30 @@
 open Geo
 
 (* Code de la Section 4 du projet. *)
-exception NonDeterministicProgram
-
 type instruction =
   Move of transformation
 | Repeat of int * program
 | Either of program * program 
 and program = instruction list
 
+exception NonDeterministicProgram
+
 (* Module Random pour les choix aléatoires *)
 let () = Random.self_init ()
 
 
+(*is_deterministic : program -> bool*)
 let rec is_deterministic (prog : program) : bool =
   List.for_all (fun instruction ->
     match instruction with
     | Move _ -> true
+    (*On vérifie si les sous-programmes dans Repeat sont déterministes*)
     | Repeat (_, prog_sub) -> is_deterministic prog_sub
     | Either (_, _) -> false
   ) prog
 
+
+(* unfold_repeat : program -> program*)
 let rec unfold_repeat (prog : program) : program =
   List.flatten (
     List.map (fun instruction ->
@@ -34,6 +38,7 @@ let rec unfold_repeat (prog : program) : program =
   )
 
 
+(* run_det : program -> point -> point list*)
 let rec run_det (prog : program) (p : point) : point list =
   let rec execute (prog : program) (current_pos : point) (visited : point list) : point list =
     match prog with
@@ -58,12 +63,14 @@ let rec run_det (prog : program) (p : point) : point list =
   execute prog p [p]
 
 
+(*target_reached_det : program -> point -> rectangle -> bool*)
 let target_reached_det (prog : program) (p : point) (target : rectangle) : bool =
   match List.rev (run_det prog p) with
   | [] -> false
   | final_pos :: _ -> in_rectangle target final_pos
   
-  
+
+(* run : program -> point -> point list*)
 let rec run (prog : program) (p : point) : point list =
   let rec execute (prog : program) (current_pos : point) (visited : point list) : point list =
     match prog with
@@ -91,13 +98,15 @@ let rec run (prog : program) (p : point) : point list =
   in
   execute prog p [p]
 
+
+(*all_choices : program -> program list*)
 let rec all_choices (prog : program) : program list =
   match prog with
   | [] -> [[]]
   | instr :: rest ->
     let rest_choices = all_choices rest in
     match instr with
-    | Move t -> List.map (fun choice -> instr :: choice) rest_choices
+    | Move t -> List.map (fun choice -> instr :: choice) rest_choices 
     | Either (prog1, prog2) ->
       let choices1 = all_choices prog1 in
       let choices2 = all_choices prog2 in
@@ -109,6 +118,7 @@ let rec all_choices (prog : program) : program list =
           let unfolded_prog = unfold_repeat prog in
           all_choices unfolded_prog
       
+(* target_reached : program -> point -> rectangle -> bool*)
 let target_reached (prog : program) (p : point) (r : rectangle) : bool =
   let all_programs = all_choices prog in
   List.for_all (fun program ->
