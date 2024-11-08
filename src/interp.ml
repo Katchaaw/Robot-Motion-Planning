@@ -27,10 +27,8 @@ let rec unfold_repeat (prog : program) : program =
       match instruction with
       | Move t -> [Move t]
       | Repeat (n, prog_sub) ->
-          (* Dépliage de Repeat : on répète prog_sub déplié n fois *)
           List.concat (List.init n (fun _ -> unfold_repeat prog_sub))
       | Either (prog1, prog2) ->
-          (* Dépliage des Repeat dans chaque branche de Either *)
           [Either (unfold_repeat prog1, unfold_repeat prog2)]
     ) prog
   )
@@ -39,7 +37,7 @@ let rec unfold_repeat (prog : program) : program =
 let rec run_det (prog : program) (p : point) : point list =
   let rec execute (prog : program) (current_pos : point) (visited : point list) : point list =
     match prog with
-    | [] -> List.rev visited  (* On retourne la liste complète des positions visitées *)
+    | [] -> List.rev visited
     | instr :: rest -> 
         match instr with
         | Move t ->
@@ -62,14 +60,14 @@ let rec run_det (prog : program) (p : point) : point list =
 
 let target_reached_det (prog : program) (p : point) (target : rectangle) : bool =
   match List.rev (run_det prog p) with
-  | [] -> false  (* Cas improbable : run_det devrait toujours retourner au moins une position *)
+  | [] -> false
   | final_pos :: _ -> in_rectangle target final_pos
   
   
 let rec run (prog : program) (p : point) : point list =
   let rec execute (prog : program) (current_pos : point) (visited : point list) : point list =
     match prog with
-    | [] -> List.rev visited  (* Retourne la liste des positions visitées *)
+    | [] -> List.rev visited
     | instr :: rest -> 
       match instr with
       | Move t ->
