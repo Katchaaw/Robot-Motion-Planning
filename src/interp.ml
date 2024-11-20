@@ -23,7 +23,7 @@ let () = Random.self_init ()
 (*is_deterministic : program -> bool*)
 (* Vérifie si un programme est déterministe (ne contient pas d'instruction `Either`). *)
 let rec is_deterministic (prog : program) : bool =
-  (* On itère sur tous les élements de prog *)
+  (* On itère sur tous les éléments de prog *)
   List.for_all (fun instruction ->
     match instruction with
     | Move _ -> true
@@ -77,7 +77,7 @@ let rec run_det (prog : program) (p : point) : point list =
             else 
               let new_visited = execute sub_prog acc_pos [] in
               let final_pos = List.hd new_visited in
-              (* On List.rev_append pour respecteur l'ordre d'exécution *)
+              (* On List.rev_append pour respecter l'ordre d'exécution *)
               repeat (n - 1) final_pos (List.rev_append new_visited acc_visited)
           in
           let final_visited = repeat n current_pos visited in
@@ -100,7 +100,7 @@ let target_reached_det (prog : program) (p : point) (target : rectangle) : bool 
 
 (* run : program -> point -> point list*)
 (* Exécute un programme quelconque, même non-déterministe.
-   Retourne la liste des positions visitées. Peut être  différentes si on l’appelle plusieurs fois ! *)
+   Retourne la liste des positions visitées. Peut être  différente si on l’appelle plusieurs fois ! *)
 let run (prog : program) (p : point) : point list =
   let rec execute (prog : program) (current_pos : point) (visited : point list) : point list =
     match prog with
@@ -119,14 +119,14 @@ let run (prog : program) (p : point) : point list =
           else 
             let new_visited = execute sub_prog acc_pos [] in
             let final_pos = List.hd new_visited in
-            (* On List.rev_append pour respecteur l'ordre d'exécution *)
+            (* On List.rev_append pour respecteur l'ordre d'exécution. *)
             repeat (n - 1) final_pos (List.rev_append new_visited acc_visited)
           in
           let final_visited = repeat n current_pos visited in
           (* On utilise List.hd pour récupérer la position courante. *)
           execute rest (List.hd final_visited) final_visited
 
-      (* On choisit aléatoirement entre les deux sous-programmes *)
+      (* On choisit aléatoirement entre les deux sous-programmes. *)
       | Either (prog1, prog2) ->
         (* Choix aléatoire *)
         let chosen_prog = if Random.bool () then prog1 else prog2 in
