@@ -27,3 +27,9 @@ Pour le lancer, exécutez la commande `make top`.
 
 Pour lancer tous les tests disponibles, exécutez `make test`.
 Pour tester seulement les fonctions de l'exercice *i*, exécutez `make test-i`.
+
+## Lancer l'interpreteur
+
+Le fichier qui contient la fonction "main" du project est `bin/interp.ml` .
+La commande pour compiler le projet est `dune build`,
+et celle pour compiler et lancer le main est `dune exec interp` suivie des options et des arguments éventuels.
