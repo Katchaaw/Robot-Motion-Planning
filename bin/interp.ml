@@ -5,21 +5,23 @@ open Pf5.Interp
 
 (*exception Quit;;*)
 
+let () = Random.self_init ()
 (* ###############  Programmes passables en arguments ###############*)
+
 
 (* Exemple 1 : Déplacement simple en Carré *)
 let program1 = [
-  Move (Translate { x = 10.0; y = 0.0 }); (* Avance de 10 unités à droite *)
-  Move (Translate { x = 0.0; y = 10.0 }); (* Avance de 10 unités vers le haut *)
-  Move (Translate { x = -10.0; y = 0.0 }); (* Retourne à gauche de 10 unités *)
-  Move (Translate { x = 0.0; y = -10.0 }); (* Retourne en bas de 10 unités *)
+  Move (Translate { x = 50.0; y = 0.0 }); (* Avance de 10 unités à droite *)
+  Move (Translate { x = 0.0; y = 50.0 }); (* Avance de 10 unités vers le haut *)
+  Move (Translate { x = -50.0; y = 0.0 }); (* Retourne à gauche de 10 unités *)
+  Move (Translate { x = 0.0; y = -50.0 }); (* Retourne en bas de 10 unités *)
 ]
 
 (* Exemple 2 : Déplacement avec une répétition d'une boucle *)
 let program2 = [
   Repeat (4, [
-    Move (Translate { x = 10.0; y = 0.0 }); (* Avance de 10 unités à droite *)
-    Move (Translate { x = 0.0; y = 10.0 }); (* Avance de 10 unités vers le haut *)
+    Move (Translate { x = 50.0; y = 0.0 }); (* Avance de 10 unités à droite *)
+    Move (Translate { x = 0.0; y = 50.0 }); (* Avance de 10 unités vers le haut *)
   ])
 ]
 
@@ -27,14 +29,14 @@ let program2 = [
 let program3 = [
   Either (
     [ 
-      Move (Translate { x = 10.0; y = 0.0 }); (* Avance de 10 unités à droite *)
-      Move (Translate { x = 0.0; y = 10.0 }); (* Avance de 10 unités vers le haut *)
-      Move (Translate { x = -10.0; y = 0.0 }); (* Retourne à gauche de 10 unités *)
-      Move (Translate { x = 0.0; y = -10.0 }); (* Retourne en bas de 10 unités *)
+      Move (Translate { x = 50.0; y = 0.0 }); (* Avance de 10 unités à droite *)
+      Move (Translate { x = 0.0; y = 50.0 }); (* Avance de 10 unités vers le haut *)
+      Move (Translate { x = -50.0; y = 0.0 }); (* Retourne à gauche de 10 unités *)
+      Move (Translate { x = 0.0; y = -50.0 }); (* Retourne en bas de 10 unités *)
     ],
     [ 
-      Move (Translate { x = 10.0; y = 10.0 }); (* Avance en diagonale droite-haut *)
-      Move (Translate { x = -10.0; y = -10.0 }); (* Retourne en diagonale gauche-bas *)
+      Move (Translate { x = 50.0; y = 50.0 }); (* Avance en diagonale droite-haut *)
+      Move (Translate { x = -50.0; y = -50.0 }); (* Retourne en diagonale gauche-bas *)
     ]
   )
 ]
@@ -58,6 +60,7 @@ type options = {
   rectangle_color: color option;
   point_color: color option;
   window_size: (int * int) option;
+  print_steps: bool;
 }
 
 (* Fonction qui analyse les arguments passés en ligne de commande et configure les options *)
@@ -100,13 +103,17 @@ let parse_args args =
         let height = int_of_string h in
         parse { opts with window_size = Some (width, height) } rest
 
+    (* Gérer l'option -print pour afficher les étapes *)
+    | "-print" :: rest ->
+      parse { opts with print_steps = true } rest
+
     (* Terminer le parsing si aucune autre option n'est trouvée *)
     | [] -> opts
 
     | arg :: _ -> failwith (Printf.sprintf "Option inconnue : %s" arg)
   in
   parse { abs_rectangle = None; show_points = false; background_color = None;
-          foreground_color = None; rectangle_color = None; point_color = None; window_size = None } args
+          foreground_color = None; rectangle_color = None; point_color = None; window_size = None; print_steps = false} args
 
 
 (* ############### Interpréteur ############### *)
@@ -169,7 +176,7 @@ let run_interpreter opts prog =
         (* Afficher le rectangle *)
         let corners = corners rect in
         Graphics.set_color (color_to_graphics (Option.get opts.rectangle_color));
-        List.iter (fun p -> Graphics.fill_rect (int_of_float p.x) (int_of_float p.y) 5 5) corners
+        List.iter (fun p -> Graphics.fill_rect (int_of_float p.x) (int_of_float p.y) 3 3) corners
     | None -> ());
 
   (* Initialiser la position du robot à (0, 0) *)
@@ -188,7 +195,7 @@ let run_interpreter opts prog =
         | None -> Graphics.red
       in
       Graphics.set_color point_color;
-      Graphics.fill_circle (int_of_float !robot_position.x) (int_of_float !robot_position.y) 5
+      Graphics.fill_circle (int_of_float !robot_position.x) (int_of_float !robot_position.y) 3
   in
 
   (* Fonction pour exécuter un mouvement de translation *)
@@ -201,10 +208,15 @@ let run_interpreter opts prog =
         Graphics.set_color (color_to_graphics (Option.get opts.foreground_color)); (* Couleur du trait *)
         Graphics.moveto (int_of_float prev_pos.x) (int_of_float prev_pos.y);
         Graphics.lineto (int_of_float !robot_position.x) (int_of_float !robot_position.y);
-        display_point ()
+        display_point ();
+        if opts.print_steps then 
+          Unix.sleepf 0.5  (* Pause de 0.5 seconde entre chaque mouvement *)
     | Rotate (center, angle) -> 
         robot_position := rotate !robot_position angle center;
-        display_point ()
+        display_point ();
+        if opts.print_steps then 
+          Unix.sleepf 2.0  (* Pause de 0.5 seconde entre chaque mouvement *)
+  
   in
 
   
@@ -213,19 +225,21 @@ let run_interpreter opts prog =
     match program with
     | [] -> ()
     | Move trans :: rest -> 
-      execute_move trans;
-      execute_program rest
+        execute_move trans;
+        execute_program rest
     | Repeat (n, sub_program) :: rest -> 
-      for _ = 1 to n do
-        execute_program sub_program
-      done;
-      execute_program rest
-    | Either (prog1, _) :: rest ->
-      (* On choisit d'exécuter le premier programme ici, mais cela peut être
-        ajusté pour choisir entre les deux programmes *)
-      execute_program prog1;
-      execute_program rest
+        for _ = 1 to n do
+          execute_program sub_program
+        done;
+        execute_program rest
+    | Either (prog1, prog2) :: rest ->
+        (* Choisir aléatoirement entre prog1 et prog2 *)
+        let chosen_prog = if Random.int 2 = 1 then prog1 else prog2 in
+        execute_program chosen_prog;
+        execute_program rest
+  
   in
+
 
   (* Exécuter le programme *)
   execute_program prog;
