@@ -21,6 +21,7 @@ depends: [
   "utop"
   "fmt"
   "alcotest"
+  "graphics"
   "odoc" {with-doc}
 ]
 build: [
