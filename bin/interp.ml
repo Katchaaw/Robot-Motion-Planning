@@ -1,9 +1,9 @@
-open Graphics
+(*open Graphics*)
 open Pf5.Geo 
 open Pf5.Interp 
-open Pf5.Approx
+(*open Pf5.Approx*)
 
-exception Quit;;
+(*exception Quit;;*)
 
 (* ###############  Programmes passables en arguments ###############*)
 
@@ -62,8 +62,8 @@ type options = {
 
 (* Fonction qui analyse les arguments passés en ligne de commande et configure les options *)
 let parse_args args =
+  Printf.printf "Arguments reçus : %s\n" (String.concat " " args);
   let rec parse opts = function
-
     (* Gérer l'option -abs *)
     | "-abs" :: x_min :: y_min :: x_max :: y_max :: rest ->
       let rect = { x_min = float_of_string x_min; y_min = float_of_string y_min; 
@@ -103,7 +103,7 @@ let parse_args args =
     (* Terminer le parsing si aucune autre option n'est trouvée *)
     | [] -> opts
 
-    | _ -> failwith "Option inconnue"
+    | arg :: _ -> failwith (Printf.sprintf "Option inconnue : %s" arg)
   in
   parse { abs_rectangle = None; show_points = false; background_color = None;
           foreground_color = None; rectangle_color = None; point_color = None; window_size = None } args
@@ -135,37 +135,50 @@ let apply_colors opts =
    | Some color -> Graphics.set_color (color_to_graphics color)
    | None -> ())
 
-(*
+
+(* ########################################################################################## *)
+
+  
 let run_interpreter opts prog =
   (* Initialiser la fenêtre graphique*)
-  let () =
-    match opts.window_size with
+  Printf.printf "Initialisation de la fenêtre graphique...\n";
+  Graphics.open_graph " 100x100 ";
+  (*
+  match opts.window_size with
     (* Taille donnée par l'utilisateur dans l'option -size *)
-    | Some (width, height) -> Graphics.open_graph (Printf.sprintf " %dx%d" width height)
+    | Some (w, h) -> 
+        Graphics.open_graph (Printf.sprintf " %dx%d " w h);
+        Printf.printf "Ouverture de la fenêtre avec taille %dx%d\n" w h;
     (* Taille par défaut *)
-    | None -> Graphics.open_graph "500x500" (* Taille par défaut de la fenêtre *)
-  in
-
+    | None -> 
+        Printf.printf "Ouverture de la fenêtre avec taille par défaut 600x600\n";
+        Graphics.open_graph " 600x600"; *)
+      
+  
   (* Appliquer les couleurs *)
   apply_colors opts;
 
+  
   (* Vérifier l'option de rectangle abs *)
   (match opts.abs_rectangle with
-   | Some rect -> 
-       (* Vérifier que le rectangle contient l'origine (0, 0) *)
-       if not (in_rectangle rect { x = 0.0; y = 0.0 }) then
-         raise (Failure "L'origine (0, 0) n'est pas dans le rectangle spécifié")
-       else
-         (* Afficher le rectangle *)
-         let corners = corners rect in
-         Graphics.set_color (color_to_graphics (Option.get opts.rectangle_color));
-         List.iter (fun p -> Graphics.fill_rect (int_of_float p.x) (int_of_float p.y) 5 5) corners
-   | None -> ());
+    | Some rect -> 
+      (* Vérifier que le rectangle contient l'origine (0, 0) *)
+      if not (in_rectangle rect { x = 0.0; y = 0.0 }) then
+        raise (Failure "L'origine (0, 0) n'est pas dans le rectangle spécifié")
+      else
+        (* Afficher le rectangle *)
+        let corners = corners rect in
+        Graphics.set_color (color_to_graphics (Option.get opts.rectangle_color));
+        List.iter (fun p -> Graphics.fill_rect (int_of_float p.x) (int_of_float p.y) 5 5) corners
+    | None -> ());
 
   (* Initialiser la position du robot à (0, 0) *)
   let robot_position = { x = 0.0; y = 0.0 } in
-  let robot_position = ref robot_position in
+  let robot_position = ref robot_position 
 
+  in
+
+  
   (* Fonction pour afficher un point *)
   let display_point () =
     if opts.show_points then
@@ -181,36 +194,65 @@ let run_interpreter opts prog =
   (* Fonction pour exécuter un mouvement de translation *)
   let execute_move trans =
     match trans with
-    | Translate vector ->
+    | Translate vector -> 
+        (* Avant de déplacer le robot, tracer une ligne vers la nouvelle position *)
+        let prev_pos = !robot_position in
         robot_position := translate vector !robot_position;
+        Graphics.set_color (color_to_graphics (Option.get opts.foreground_color)); (* Couleur du trait *)
+        Graphics.moveto (int_of_float prev_pos.x) (int_of_float prev_pos.y);
+        Graphics.lineto (int_of_float !robot_position.x) (int_of_float !robot_position.y);
         display_point ()
-    | Rotate (center, angle) ->
+    | Rotate (center, angle) -> 
         robot_position := rotate !robot_position angle center;
         display_point ()
   in
 
-   (* Exécuter le programme pas à pas *)
-   let rec execute_program program =
+  
+  (* Exécuter le programme pas à pas *)
+  let rec execute_program program =
     match program with
     | [] -> ()
     | Move trans :: rest -> 
-        execute_move trans;
-        execute_program rest
+      execute_move trans;
+      execute_program rest
     | Repeat (n, sub_program) :: rest -> 
-        for _ = 1 to n do
-          execute_program sub_program
-        done;
-        execute_program rest
-    | Either (prog1, prog2) :: rest ->
-        (* On choisit d'exécuter le premier programme ici, mais cela peut être
-           ajusté pour choisir entre les deux programmes *)
-        execute_program prog1;
-        execute_program rest
+      for _ = 1 to n do
+        execute_program sub_program
+      done;
+      execute_program rest
+    | Either (prog1, _) :: rest ->
+      (* On choisit d'exécuter le premier programme ici, mais cela peut être
+        ajusté pour choisir entre les deux programmes *)
+      execute_program prog1;
+      execute_program rest
   in
 
   (* Exécuter le programme *)
   execute_program prog;
+  
   (* Terminer l'exécution en maintenant la fenêtre ouverte *)
-  Graphics.read_key ();;
+  ignore(Graphics.read_key ());
   Graphics.close_graph ()
-*)
+
+let main args =
+  (* Extraire le dernier argument comme identifiant de programme *)
+  let (options, prog) =
+    match List.rev args with
+    | prog :: rest -> (List.rev rest, prog) (* Dernier argument = prog *)
+    | [] -> failwith "Aucun argument fourni"
+  in
+  (* Analyser les options *)
+  let opts = parse_args options in
+  let prog = match prog with
+    | "1" -> program1
+    | "2" -> program2
+    | "3" -> program3
+    |  _ -> failwith "Programme non spécifié"
+  in
+  run_interpreter opts prog
+
+  let () =
+  try
+    main (List.tl (Array.to_list Sys.argv))
+  with
+  | ex -> Printf.printf "Erreur inattendue : %s\n%!" (Printexc.to_string ex)
