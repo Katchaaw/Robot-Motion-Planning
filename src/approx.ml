@@ -79,9 +79,20 @@ let inclusion (r : rectangle) (t : rectangle) : bool =
   
 
 (* target_reached_rect : program -> rectangle -> rectangle -> bool *)
+(* Vérifie si pour toutes les exécutions possibles du programme, le rectangle final est inclus dans la zone cible *)
 let target_reached_rect (prog : program) (initial_rect : rectangle) (target : rectangle) : bool =
-  let all_rects = run_rect prog initial_rect in
-  List.for_all (fun r -> inclusion r target) all_rects
+  (* On récupère toutes les combinaisons possibles d'exécution du programme *)
+  let all_programs = all_choices prog in
+
+  (* On vérifie que pour chaque programme possible, le rectangle final est inclus dans la cible *)
+  List.for_all (fun program ->
+    (* On simule l'exécution du programme sur l'approximation initiale *)
+    let visited_rects = run_rect program initial_rect in
+    match List.rev visited_rects with
+    | [] -> false (* Si aucun rectangle visité = echec*)
+    | final_rect :: _ -> inclusion final_rect target
+  ) all_programs
+
 
   
 (* run_polymorphe : (transformation -> 'a -> 'a) -> program -> 'a -> 'a list *)
@@ -151,7 +162,14 @@ let over_approximate (prog : program) (r : rectangle) : rectangle =
   List.hd (execute prog r)
 
 
-let feasible_target_reached (prog : program) (r : rectangle) (target : rectangle) : bool =
-  let final_rect = over_approximate prog r in
-  inclusion final_rect target
+(* Vérifie si un rectangle r1 est inclus dans un rectangle r2 *)
+let is_rectangle_included (r1 : rectangle) (r2 : rectangle) : bool =
+  r1.x_min >= r2.x_min &&
+  r1.x_max <= r2.x_max &&
+  r1.y_min >= r2.y_min &&
+  r1.y_max <= r2.y_max
 
+(* Fonction principale *)
+let feasible_target_reached (prog : program) (initial_rect : rectangle) (target_rect : rectangle) : bool =
+  let final_approx = over_approximate prog initial_rect in
+  is_rectangle_included final_approx target_rect
