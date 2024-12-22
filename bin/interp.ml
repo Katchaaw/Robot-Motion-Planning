@@ -192,6 +192,7 @@ let calculate_steps prog =
 
 
 
+
 let display_cumulative_steps opts steps current_index =
   (* Effacer la fenêtre *)
   Graphics.clear_graph ();
@@ -216,6 +217,38 @@ let display_cumulative_steps opts steps current_index =
   (* Dessiner l'axe des ordonnées *)
   Graphics.moveto center_x 0;
   Graphics.lineto center_x win_height;
+
+  (* Fonction récursive pour dessiner les graduations sur l'axe X *)
+  let rec draw_x_graduations i =
+    if i <= 10 && i >= -10 then begin
+      let x = center_x + int_of_float (float_of_int i *. 10.0 *. scale_x) in
+      Graphics.set_color Graphics.black;
+      Graphics.moveto x (center_y - 5);
+      Graphics.lineto x (center_y + 5);
+      (* Ajouter les étiquettes tous les 5 unités *)
+      if i mod 2 = 0 then
+        Graphics.draw_string (string_of_int i);
+      draw_x_graduations (i + 1)
+    end
+  in
+  (* Appeler la fonction récursive pour l'axe X *)
+  draw_x_graduations (-10);
+
+  (* Fonction récursive pour dessiner les graduations sur l'axe Y *)
+  let rec draw_y_graduations i =
+    if i <= 10 && i >= -10 then begin
+      let y = center_y + int_of_float (float_of_int i *. 10.0 *. scale_y) in
+      Graphics.set_color Graphics.black;
+      Graphics.moveto (center_x - 5) y;
+      Graphics.lineto (center_x + 5) y;
+      (* Ajouter les étiquettes tous les 5 unités *)
+      if i mod 2 = 0 then
+        Graphics.draw_string (string_of_int i);
+      draw_y_graduations (i + 1)
+    end
+  in
+  (* Appeler la fonction récursive pour l'axe Y *)
+  draw_y_graduations (-10);
 
   (* Dessiner le chemin cumulatif *)
   let rec draw_path = function
@@ -252,6 +285,8 @@ let display_cumulative_steps opts steps current_index =
       steps_to_draw
 
   
+
+
 
 
 (* Exécution avec chemin cumulatif *)
@@ -321,6 +356,11 @@ let run_interpreter opts prog =
     
   apply_colors opts;
   loop ()
+
+
+
+
+
 
 let main args =
   (* Extraire le dernier argument comme identifiant de programme *)
