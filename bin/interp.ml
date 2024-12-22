@@ -145,10 +145,143 @@ let apply_colors opts =
 
 (* ########################################################################################## *)
 
-  
+let rec take n lst =
+  match (n, lst) with
+  | 0, _ -> []
+  | _, [] -> []
+  | n, x :: xs -> x :: take (n - 1) xs
+
+
+
+(* Ajout d'une fonction pour calculer toutes les étapes d'un programme *)
+let calculate_steps prog =
+  let rec aux current_pos program =
+    match program with
+    | [] -> []
+    | Move (Translate vector) :: rest ->
+        let new_pos = translate vector current_pos in
+        new_pos :: aux new_pos rest
+    | Move (Rotate (center, angle)) :: rest ->
+        let new_pos = rotate current_pos angle center in
+        new_pos :: aux new_pos rest
+    | Repeat (n, sub_program) :: rest ->
+        let repeated_steps = List.init n (fun _ -> aux current_pos sub_program) |> List.flatten in
+        repeated_steps @ aux (List.hd (List.rev repeated_steps)) rest
+    | Either (prog1, prog2) :: rest ->
+        let chosen_prog = if Random.int 2 = 1 then prog1 else prog2 in
+        aux current_pos chosen_prog @ aux (List.hd (List.rev (aux current_pos chosen_prog))) rest
+  in
+  aux { x = 0.0; y = 0.0 } prog
+
+
+
+
+(* Fonction pour afficher le chemin jusqu'à l'étape actuelle *)
+let display_cumulative_steps opts steps current_index =
+  (* Effacer la fenêtre *)
+  Graphics.clear_graph ();
+
+  (* Redessiner l'arrière-plan si nécessaire *)
+  (match opts.background_color with
+   | Some color ->
+       Graphics.set_color (color_to_graphics color);
+       Graphics.fill_rect 0 0 (Graphics.size_x ()) (Graphics.size_y ())
+   | None -> ());
+
+  (* Dessiner le chemin cumulatif *)
+  let rec draw_path = function
+  | [] | [_] -> () (* Pas de chemin à dessiner pour 0 ou 1 point *)
+  | pos1 :: pos2 :: rest ->
+      (* Dessiner une ligne entre deux points consécutifs *)
+      Graphics.set_color (color_to_graphics (Option.get opts.foreground_color));
+      Graphics.moveto (int_of_float pos1.x) (int_of_float pos1.y);
+      Graphics.lineto (int_of_float pos2.x) (int_of_float pos2.y);
+      draw_path (pos2 :: rest)
+  in
+
+  (* Commencer à dessiner depuis la position initiale (0,0) *)
+  let steps_to_draw = take (current_index + 2) ({x = 0.0; y = 0.0} :: steps) in
+  draw_path steps_to_draw;
+
+  (* Dessiner un point à la position actuelle si activé *)
+  if opts.show_points then
+    let current_step = List.nth steps current_index in
+    let point_color =
+      match opts.point_color with
+      | Some color -> color_to_graphics color
+      | None -> Graphics.red
+    in
+    Graphics.set_color point_color;
+    Graphics.fill_circle (int_of_float current_step.x) (int_of_float current_step.y) 3
+
+
+
+
+
+(* Exécution avec chemin cumulatif *)
+let run_interpreter opts prog =
+  (* Pré-calculer toutes les étapes *)
+  let steps = calculate_steps prog in
+
+  (* Initialiser l'état *)
+  let current_step = ref 0 in
+  let total_steps = List.length steps in
+
+  (* Fonction pour gérer l'affichage et la navigation *)
+  let rec loop () =
+    (* Afficher les étapes cumulatives jusqu'à l'étape actuelle *)
+    display_cumulative_steps opts steps !current_step;
+
+    (* Gérer les entrées utilisateur *)
+    let key = Graphics.read_key () in
+    match key with
+    | 'n' when !current_step < total_steps - 1 -> (* Étape suivante *)
+        incr current_step;
+        loop ()
+    | 'p' when !current_step > 0 -> (* Étape précédente *)
+        decr current_step;
+        loop ()
+    | 'q' -> (* Quitter *)
+        Graphics.close_graph ()
+    | _ -> loop () (* Continuer *)
+  in
+
+  (* Initialiser la fenêtre graphique *)
+  Graphics.open_graph " 600x600";
+  apply_colors opts;
+  loop ()
+
+
+
+
+
+let main args =
+  (* Extraire le dernier argument comme identifiant de programme *)
+  let (options, prog) =
+    match List.rev args with
+    | prog :: rest -> (List.rev rest, prog) (* Dernier argument = prog *)
+    | [] -> failwith "Aucun argument fourni"
+  in
+  (* Analyser les options *)
+  let opts = parse_args options in
+  let prog = match prog with
+    | "1" -> program1
+    | "2" -> program2
+    | "3" -> program3
+    |  _ -> failwith "Programme non spécifié"
+  in
+  run_interpreter opts prog
+
+let () =
+  try
+    main (List.tl (Array.to_list Sys.argv))
+  with
+  | ex -> Printf.printf "Erreur inattendue : %s\n%!" (Printexc.to_string ex)
+
+
+(*
 let run_interpreter opts prog =
   (* Initialiser la fenêtre graphique*)
-  Printf.printf "Initialisation de la fenêtre graphique...\n";
   Graphics.open_graph " 100x100 ";
   (*
   match opts.window_size with
@@ -159,12 +292,15 @@ let run_interpreter opts prog =
     (* Taille par défaut *)
     | None -> 
         Printf.printf "Ouverture de la fenêtre avec taille par défaut 600x600\n";
-        Graphics.open_graph " 600x600"; *)
-      
+        Graphics.open_graph " 600x600"; *)   
   
   (* Appliquer les couleurs *)
   apply_colors opts;
 
+    (* Initialiser la position du robot et l'index de l'étape *)
+  let robot_position = ref { x = 0.0; y = 0.0 } in
+  let current_step = ref 0 in
+  let steps = ref prog in (* Liste des étapes restantes *)
   
   (* Vérifier l'option de rectangle abs *)
   (match opts.abs_rectangle with
@@ -248,25 +384,4 @@ let run_interpreter opts prog =
   ignore(Graphics.read_key ());
   Graphics.close_graph ()
 
-let main args =
-  (* Extraire le dernier argument comme identifiant de programme *)
-  let (options, prog) =
-    match List.rev args with
-    | prog :: rest -> (List.rev rest, prog) (* Dernier argument = prog *)
-    | [] -> failwith "Aucun argument fourni"
-  in
-  (* Analyser les options *)
-  let opts = parse_args options in
-  let prog = match prog with
-    | "1" -> program1
-    | "2" -> program2
-    | "3" -> program3
-    |  _ -> failwith "Programme non spécifié"
-  in
-  run_interpreter opts prog
-
-  let () =
-  try
-    main (List.tl (Array.to_list Sys.argv))
-  with
-  | ex -> Printf.printf "Erreur inattendue : %s\n%!" (Printexc.to_string ex)
+*)
