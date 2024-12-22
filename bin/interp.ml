@@ -6,6 +6,7 @@ open Pf5.Interp
 (*exception Quit;;*)
 
 let () = Random.self_init ()
+
 (* ###############  Programmes passables en arguments ###############*)
 
 
@@ -59,7 +60,7 @@ type options = {
   foreground_color: color option;
   rectangle_color: color option;
   point_color: color option;
-  window_size: string option;
+  window_size: (int * int) option;
   print_steps: bool;
 }
 
@@ -98,8 +99,11 @@ let parse_args args =
         parse { opts with point_color = Some point_color } rest
   
     (* Gérer l'option -size pour la taille de la fenêtre *)
-    | "-size" :: w  :: rest ->
-        parse { opts with window_size = Some (w) } rest
+    | "-size" :: w  :: h :: rest ->
+        let width = int_of_string w in
+        let height = int_of_string h in
+        parse { opts with window_size = Some (width, height) } rest
+
 
     (* Gérer l'option -print pour afficher les étapes *)
     | "-print" :: rest ->
@@ -109,13 +113,15 @@ let parse_args args =
     | [] -> opts
 
     | arg :: _ -> failwith (Printf.sprintf "Option inconnue : %s" arg)
+
   in
   parse { abs_rectangle = None; show_points = false; background_color = None;
           foreground_color = None; rectangle_color = None; point_color = None; window_size = None; print_steps = false} args
 
 
-(* ############### Interpréteur ############### *)
 
+
+(* ############### Interpréteur ############### *)
 let apply_colors opts =
 
   (* Dessiner le rectangle si l'option -abs est spécifiée *)
@@ -163,7 +169,6 @@ let rec take n lst =
   | n, x :: xs -> x :: take (n - 1) xs
 
 
-
 (* Ajout d'une fonction pour calculer toutes les étapes d'un programme *)
 let calculate_steps prog =
   let rec aux current_pos program =
@@ -187,34 +192,50 @@ let calculate_steps prog =
 
 
 
-(* Fonction pour afficher le chemin jusqu'à l'étape actuelle *)
 let display_cumulative_steps opts steps current_index =
   (* Effacer la fenêtre *)
   Graphics.clear_graph ();
 
-  (* Redessiner l'arrière-plan si nécessaire *)
-  (match opts.background_color with
-   | Some color ->
-       Graphics.set_color (color_to_graphics color);
-       Graphics.fill_rect 0 0 (Graphics.size_x ()) (Graphics.size_y ())
-   | None -> ());
+  (* Récupérer la taille de la fenêtre *)
+  let win_width = Graphics.size_x () in
+  let win_height = Graphics.size_y () in
+
+  (* Calculer l'échelle en fonction de la taille de la fenêtre *)
+  let scale_x = float_of_int win_width /. 200.0 in
+  let scale_y = float_of_int win_height /. 200.0 in
+
+  (* Dessiner l'axe des abscisses (x) et des ordonnées (y) au centre *)
+  let center_x = win_width / 2 in
+  let center_y = win_height / 2 in
+
+  (* Dessiner l'axe des abscisses *)
+  Graphics.set_color Graphics.black;
+  Graphics.moveto 0 center_y;
+  Graphics.lineto win_width center_y;
+
+  (* Dessiner l'axe des ordonnées *)
+  Graphics.moveto center_x 0;
+  Graphics.lineto center_x win_height;
 
   (* Dessiner le chemin cumulatif *)
   let rec draw_path = function
-  | [] | [_] -> () (* Pas de chemin à dessiner pour 0 ou 1 point *)
-  | pos1 :: pos2 :: rest ->
-      (* Dessiner une ligne entre deux points consécutifs *)
-      Graphics.set_color (color_to_graphics (Option.get opts.foreground_color));
-      Graphics.moveto (int_of_float pos1.x) (int_of_float pos1.y);
-      Graphics.lineto (int_of_float pos2.x) (int_of_float pos2.y);
-      draw_path (pos2 :: rest)
+    | [] | [_] -> () (* Pas de chemin à dessiner pour 0 ou 1 point *)
+    | pos1 :: pos2 :: rest ->
+        Graphics.set_color (color_to_graphics (Option.get opts.foreground_color));
+        Graphics.moveto
+          (center_x + int_of_float (pos1.x *. scale_x))
+          (center_y + int_of_float (pos1.y *. scale_y));
+        Graphics.lineto
+          (center_x + int_of_float (pos2.x *. scale_x))
+          (center_y + int_of_float (pos2.y *. scale_y));
+        draw_path (pos2 :: rest)
   in
 
-  (* Commencer à dessiner depuis la position initiale (0,0) *)
-  let steps_to_draw = take (current_index + 2) ({x = 0.0; y = 0.0} :: steps) in
+  (* Dessiner le chemin *)
+  let steps_to_draw = take (current_index + 2) ({ x = 0.0; y = 0.0 } :: steps) in
   draw_path steps_to_draw;
 
-  (* Toujours dessiner le point initial (0,0) si les points doivent être affichés *)
+  (* Affichage des points si demandé *)
   if opts.show_points then
     let point_color =
       match opts.point_color with
@@ -222,25 +243,15 @@ let display_cumulative_steps opts steps current_index =
       | None -> Graphics.red
     in
     Graphics.set_color point_color;
-    Graphics.fill_circle 0 0 3; (* Affichage du point (0,0) *)
+    List.iter
+      (fun pos ->
+         Graphics.fill_circle
+           (center_x + int_of_float (pos.x *. scale_x))
+           (center_y + int_of_float (pos.y *. scale_y))
+           3)
+      steps_to_draw
 
-  (* Dessiner les points des étapes précédentes *)
-  if opts.show_points then
-    let rec draw_all_points steps idx =
-      match steps with
-      | [] -> ()
-      | step :: rest when idx <= current_index ->
-          let point_color =
-            match opts.point_color with
-            | Some color -> color_to_graphics color
-            | None -> Graphics.red
-          in
-          Graphics.set_color point_color;
-          Graphics.fill_circle (int_of_float step.x) (int_of_float step.y) 3;
-          draw_all_points rest (idx + 1)
-      | _ -> ()
-    in
-    draw_all_points steps 0
+  
 
 
 (* Exécution avec chemin cumulatif *)
@@ -252,40 +263,64 @@ let run_interpreter opts prog =
   let current_step = ref 0 in
   let total_steps = List.length steps in
 
-  (* Fonction pour gérer l'affichage et la navigation *)
-  let rec loop () =
-    (* Afficher les étapes cumulatives jusqu'à l'étape actuelle *)
-    display_cumulative_steps opts steps !current_step;
-
-    (* Gérer les entrées utilisateur *)
-    let key = Graphics.read_key () in
-    match key with
-    | 'n' when !current_step < total_steps - 1 -> (* Étape suivante *)
-        incr current_step;
-        loop ()
-    | 'p' when !current_step > 0 -> (* Étape précédente *)
-        decr current_step;
-        loop ()
-    | 'q' -> (* Quitter *)
-        Graphics.close_graph ()
-    | _ -> loop () (* Continuer *)
+  (* Fonction pour afficher les options clavier *)
+  let display_options () =
+    let options = [
+      "N : ETAPE SUIVANTE";
+      "P : ETAPE PRECEDENTE";
+      "O : ZOOM ARRIERE";
+      "I : ZOOM AVANT";
+      "Q : QUITTER";
+    ] in
+    let x = Graphics.size_x () - 200 in
+    let y_start = Graphics.size_y () - 20 in
+    Graphics.set_color Graphics.black;
+    List.iteri
+      (fun i option ->
+        Graphics.moveto x (y_start - (i * 20));
+        Graphics.draw_string option)
+      options
   in
 
-  (* Initialiser la fenêtre graphique 
+  (* Fonction pour gérer l'affichage et la navigation *)
+  let rec loop () =
+      (* Effacer la fenêtre *)
+      Graphics.clear_graph ();
+
+      (* Afficher les étapes cumulatives jusqu'à l'étape actuelle *)
+      display_cumulative_steps opts steps !current_step;
+
+      (* Afficher les options clavier *)
+      display_options ();
+
+      (* Gérer les entrées utilisateur *)
+      let key = Graphics.read_key () in
+      match key with
+      | 'n' when !current_step < total_steps - 1 -> (* Étape suivante *)
+          incr current_step;
+          loop ()
+      | 'p' when !current_step > 0 -> (* Étape précédente *)
+          decr current_step;
+          loop ()
+      | 'q' -> (* Quitter *)
+          Graphics.close_graph ()
+      | _ -> loop () (* Continuer *)
+  in
+
+  (* Initialiser la fenêtre graphique *)
+  Graphics.open_graph "";
+  Graphics.resize_window 1080 780;
+  (*
   match opts.window_size with
-  | Some size_str -> 
-    Graphics.open_graph size_str  (* Utilisation de la chaîne de taille directement *)
-  | None -> 
-    Graphics.open_graph "600x600";  (* Taille par défaut si aucune taille n'est spécifiée *)
-  *)
-  
-  Graphics.open_graph " 600x600 ";
+    | Some (x, y) -> 
+      let length = x in let width = y in
+      Graphics.resize_window length y;  (* Utilisation de la chaîne de taille directement *)
+    | None -> 
+      Graphics.resize_window 600 600;  (* Taille par défaut si aucune taille n'est spécifiée *)
+      *)
+    
   apply_colors opts;
   loop ()
-
-
-
-
 
 let main args =
   (* Extraire le dernier argument comme identifiant de programme *)
