@@ -21,8 +21,8 @@ let program1 = [
 (* Exemple 2 : Déplacement avec une répétition d'une boucle *)
 let program2 = [
   Repeat (4, [
-    Move (Translate { x = 50.0; y = 0.0 }); (* Avance de 10 unités à droite *)
-    Move (Translate { x = 0.0; y = 50.0 }); (* Avance de 10 unités vers le haut *)
+    Move (Translate { x = 10.0; y = 0.0 }); (* Avance de 10 unités à droite *)
+    Move (Translate { x = 0.0; y = 10.0 }); (* Avance de 10 unités vers le haut *)
   ])
 ]
 
@@ -177,12 +177,24 @@ let calculate_steps prog =
     | Move (Translate vector) :: rest ->
         let new_pos = translate vector current_pos in
         new_pos :: aux new_pos rest
+
     | Move (Rotate (center, angle)) :: rest ->
         let new_pos = rotate current_pos angle center in
         new_pos :: aux new_pos rest
-    | Repeat (n, sub_program) :: rest ->
-        let repeated_steps = List.init n (fun _ -> aux current_pos sub_program) |> List.flatten in
-        repeated_steps @ aux (List.hd (List.rev repeated_steps)) rest
+
+    | Repeat (n, sub_program) :: rest -> 
+      (* Répéter n fois les sous-programmes et accumuler les résultats *)
+      let repeated_steps = 
+        let rec repeat n current_pos =
+          if n <= 0 then []
+          else
+            let sub_steps = aux current_pos sub_program in
+            sub_steps @ repeat (n - 1) (List.hd (List.rev sub_steps)) (* Reprendre à la dernière position *)
+        in
+        repeat n current_pos
+      in
+      repeated_steps @ aux (List.hd (List.rev repeated_steps)) rest
+
     | Either (prog1, prog2) :: rest ->
         let chosen_prog = if Random.int 2 = 1 then prog1 else prog2 in
         aux current_pos chosen_prog @ aux (List.hd (List.rev (aux current_pos chosen_prog))) rest
@@ -284,9 +296,6 @@ let display_cumulative_steps opts steps current_index =
            3)
       steps_to_draw
 
-  
-
-
 
 
 (* Exécution avec chemin cumulatif *)
@@ -307,7 +316,7 @@ let run_interpreter opts prog =
       "I : ZOOM AVANT";
       "Q : QUITTER";
     ] in
-    let x = Graphics.size_x () - 200 in
+    let x = Graphics.size_x () - 150 in
     let y_start = Graphics.size_y () - 20 in
     Graphics.set_color Graphics.black;
     List.iteri
