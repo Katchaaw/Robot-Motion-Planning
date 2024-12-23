@@ -131,6 +131,12 @@ let parse_args (args : string list) : options =
 
 (* ############### Interpréteur ############### *)
 
+(* Fonction pour obtenir les coordonnées du centre de l'écran *)
+let get_center () =
+  let center_x = Graphics.size_x () / 2 in
+  let center_y = Graphics.size_y () / 2 in
+  (center_x, center_y)
+
 (* apply_colors : options -> unit *)
 (* Appliquer les couleurs et redessiner le rectangle selon les coordonnées centrées sur (0,0) *)
 let apply_colors (opts : options) : unit =
@@ -160,8 +166,7 @@ let apply_colors (opts : options) : unit =
     (* Calculer les coordonnées du rectangle en pixels, centrées sur (0,0) *)
     let win_width = Graphics.size_x () in
     let win_height = Graphics.size_y () in
-    let center_x = win_width / 2 in
-    let center_y = win_height / 2 in
+    let center_x, center_y = get_center () in
 
     let x_min = center_x + int_of_float (rect.x_min *. float_of_int win_width /. 200.0) in
     let y_min = center_y + int_of_float (rect.y_min *. float_of_int win_height /. 200.0) in
@@ -268,8 +273,7 @@ let display_cumulative_steps (opts : options) (steps : point list) (current_inde
   let scale_y = float_of_int win_height /. 200.0 in
 
   (* Dessiner l'axe des abscisses (x) et des ordonnées (y) au centre *)
-  let center_x = win_width / 2 in
-  let center_y = win_height / 2 in
+  let center_x, center_y = get_center () in
 
   (* Dessiner l'axe des abscisses *)
   Graphics.moveto 0 center_y;
@@ -408,8 +412,7 @@ let run_interpreter (opts : options) (prog : instruction list) : unit =
     let mouse_x, mouse_y = Graphics.mouse_pos () in
 
     (* Calculer les coordonnées de la souris par rapport au centre de l'écran *)
-    let center_x = Graphics.size_x () / 2 in
-    let center_y = Graphics.size_y () / 2 in
+    let center_x, center_y = get_center () in
     let adjusted_x = float_of_int (mouse_x - center_x) in
     let adjusted_y = float_of_int (center_y - mouse_y) in
 
@@ -478,4 +481,9 @@ let () =
   try
     main (List.tl (Array.to_list Sys.argv))
   with
-  | ex -> Printf.printf "Erreur inattendue : %s\n%!" (Printexc.to_string ex)
+  | Graphics.Graphic_failure _ ->
+    (* On ignore simplement l'exception levée lors de la fermeture de la fenêtre. *)
+    ()
+  | ex ->
+    (* Autres exceptions inattendues : on les affiche. *)
+    Printf.printf "Erreur inattendue : %s\n%!" (Printexc.to_string ex)
