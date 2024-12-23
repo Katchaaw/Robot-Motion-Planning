@@ -24,16 +24,16 @@ let transform_corners (t : transformation) (corners : point list) : point list =
       List.map (fun p -> rotate c alpha p) corners
 
 
-(* Fonction pour transformer un rectangle selon une transformation donnée *)
+(* Transforme un rectangle en appliquant une transformation *)
 let transform_rect (t : transformation) (r : rectangle) : rectangle =
-  (* Définir les coins du rectangle *)
   let corners = corners r in
-  
-  (* Transformer les coins du rectangle *)
-  let new_corners = transform_corners t corners in
-
-  (* Trouver le rectangle englobant des nouveaux coins *)
-  rectangle_of_list new_corners
+  let transformed_corners = transform_corners t corners in
+  (* Calcul de l'enveloppe englobante en utilisant les coins transformés *)
+  let x_min = List.fold_left (fun acc p -> min acc p.x) max_float transformed_corners in
+  let x_max = List.fold_left (fun acc p -> max acc p.x) min_float transformed_corners in
+  let y_min = List.fold_left (fun acc p -> min acc p.y) max_float transformed_corners in
+  let y_max = List.fold_left (fun acc p -> max acc p.y) min_float transformed_corners in
+  { x_min; x_max; y_min; y_max }
 
 
 (* run_rect : program -> rectangle -> rectangle list *)
@@ -129,37 +129,32 @@ let run_polymorphe (transform : transformation -> 'a -> 'a) (prog : program) (in
 
 
 
-(* over_approximate : program -> rectangle -> rectangle *)
-(* Sur-approximation des positions atteignables par le robot *)
+(* Fonction qui calcule la surapproximation du rectangle après exécution d'un programme *)
 let over_approximate (prog : program) (r : rectangle) : rectangle =
-  let rec execute prog r =
+  let rec execute prog acc_rect =
     match prog with
-    | [] -> [r]
+    | [] -> acc_rect
     | Move t :: rest ->
-        let new_r = transform_rect t r in
-        new_r :: execute rest new_r
+        let new_rect = transform_rect t acc_rect in
+        execute rest new_rect
     | Repeat (n, sub_prog) :: rest ->
-        let rec repeat n acc_rect =
-          if n = 0 then [acc_rect]
-          else
-            let sub_rects = execute sub_prog acc_rect in
-            let new_rect = List.hd sub_rects in
-            repeat (n - 1) new_rect @ sub_rects
+        let rec repeat n current_rect =
+          if n = 0 then current_rect
+          else repeat (n - 1) (execute sub_prog current_rect)
         in
-        repeat n r
+        execute rest (repeat n acc_rect)
     | Either (prog1, prog2) :: rest ->
-        (* Sur-approximation en prenant l'enveloppe des résultats des deux programmes *)
-        let rects1 = execute prog1 r in
-        let rects2 = execute prog2 r in
-        let all_rects = rects1 @ rects2 in
-        
-        let min_x = List.fold_left (fun acc rect -> min acc rect.x_min) max_float all_rects in
-        let max_x = List.fold_left (fun acc rect -> max acc rect.x_max) min_float all_rects in
-        let min_y = List.fold_left (fun acc rect -> min acc rect.y_min) max_float all_rects in
-        let max_y = List.fold_left (fun acc rect -> max acc rect.y_max) min_float all_rects in
-        [{x_min = min_x; x_max = max_x; y_min = min_y; y_max = max_y}]
+        let rect1 = execute prog1 acc_rect in
+        let rect2 = execute prog2 acc_rect in
+        {
+          x_min = min rect1.x_min rect2.x_min;
+          x_max = max rect1.x_max rect2.x_max;
+          y_min = min rect1.y_min rect2.y_min;
+          y_max = max rect1.y_max rect2.y_max;
+        }
   in
-  List.hd (execute prog r)
+  execute prog r
+
 
 
 (* Vérifie si un rectangle r1 est inclus dans un rectangle r2 *)
@@ -169,7 +164,11 @@ let is_rectangle_included (r1 : rectangle) (r2 : rectangle) : bool =
   r1.y_min >= r2.y_min &&
   r1.y_max <= r2.y_max
 
-(* Fonction principale *)
-let feasible_target_reached (prog : program) (initial_rect : rectangle) (target_rect : rectangle) : bool =
-  let final_approx = over_approximate prog initial_rect in
-  is_rectangle_included final_approx target_rect
+(* feasible_target_reached : program -> rectangle -> rectangle -> bool *)
+(* Vérifie si la surapproximation des positions atteignables par le robot est incluse dans la zone cible *)
+let feasible_target_reached (prog : program) (initial_rect : rectangle) (target : rectangle) : bool =
+  let approx_rect = over_approximate prog initial_rect in
+  Printf.printf "Approx Rect: x_min=%f, x_max=%f, y_min=%f, y_max=%f\n"
+    approx_rect.x_min approx_rect.x_max approx_rect.y_min approx_rect.y_max;
+  inclusion approx_rect target
+
