@@ -27,5 +27,6 @@
     utop
     fmt
     alcotest
+    graphics
   )
 )
