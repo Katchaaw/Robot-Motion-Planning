@@ -129,7 +129,7 @@ let run (prog : program) (p : point) : point list =
       (* On choisit aléatoirement entre les deux sous-programmes. *)
       | Either (prog1, prog2) ->
         (* Choix aléatoire *)
-        let chosen_prog = if Random.bool () then prog1 else prog2 in
+        let chosen_prog = if Random.int 2 = 0 then prog1 else prog2 in
         let new_visited = execute chosen_prog current_pos [] in
         let final_pos = List.hd new_visited in
         execute rest final_pos (List.rev_append new_visited visited)
