@@ -13,8 +13,6 @@ let sample (r : rectangle) : point =
   { x = x_rand; y = y_rand }
 
 
-
-
 (* transform_rect : transformation -> rectangle -> rectangle *)
 (* Renvoie l’image d’un rectangle par la transformation donnée en argument. *)
 let transform_rect (t : transformation) (r : rectangle) : rectangle =
@@ -27,13 +25,12 @@ let transform_rect (t : transformation) (r : rectangle) : rectangle =
         y_min = r.y_min +. v.y;
         y_max = r.y_max +. v.y;
       }
+
   | Rotate (center, angle) ->
       (* Rotation : On calcule les images des coins du rectangle *)
       let rotated_corners = List.map (rotate center angle) (corners r) in
       (* On trouve le plus petit rectangle contenant tous les points après rotation *)
       rectangle_of_list rotated_corners
-
-  
 
 
 (* run_rect : program -> rectangle -> rectangle list *)
@@ -112,7 +109,6 @@ let run_polymorphe (transform : transformation -> 'a -> 'a) (prog : program) (in
           let new_state = transform t current_state in
           ([new_state], new_state)
 
-        
         (* Répéter n fois l'exécution du sous-programme *)
         | Repeat (n, sub_prog) ->
           let rec repeat n acc_state acc_states =
@@ -135,7 +131,6 @@ let run_polymorphe (transform : transformation -> 'a -> 'a) (prog : program) (in
   execute prog initial_state [initial_state]
 
 
-
 (* over_approximate : program -> rectangle -> rectangle *)
 (* Fonction qui calcule la surapproximation d'un rectangle après l'exécution d'un programme. *)
 let over_approximate (prog : program) (r : rectangle) : rectangle =
@@ -145,10 +140,12 @@ let over_approximate (prog : program) (r : rectangle) : rectangle =
     match prog with
     | [] -> acc_rect
 
+    (* Appliquer les translations / rotations *)
     | Move t :: rest ->
         let new_rect = transform_rect t acc_rect in
         execute rest new_rect
 
+    (* Répéter n fois l'exécution du sous-programme *)
     | Repeat (n, sub_prog) :: rest ->
         let rec repeat n current_rect =
           if n = 0 then current_rect
@@ -156,7 +153,9 @@ let over_approximate (prog : program) (r : rectangle) : rectangle =
         in
         execute rest (repeat n acc_rect)
         
+    (* Choix entre deux sous-programmes *)
     | Either (prog1, prog2) :: rest ->
+        (* Exécuter les deux sous-programmes et calculer la surapproximation *)
         let rect1 = execute prog1 acc_rect in
         let rect2 = execute prog2 acc_rect in
         let result_rect = {

@@ -134,11 +134,13 @@ let parse_args (args : string list) : options =
 (* Déclaration du facteur de zoom global *)
 let zoom_factor = ref 1.0
 
+
 (* Fonction pour obtenir les coordonnées du centre de l'écran *)
 let get_center () =
   let center_x = Graphics.size_x () / 2 in
   let center_y = Graphics.size_y () / 2 in
   (center_x, center_y)
+
 
 (* apply_colors : options -> unit *)
 (* Appliquer les couleurs et redessiner le rectangle selon les coordonnées centrées sur (0,0) *)
@@ -205,12 +207,12 @@ let rec take (n : int) (lst : 'a list) : 'a list =
 
 
 (* calculate_steps : (instruction list) -> options -> point list *)
-(* Fonction qui calcule toutes les étapes de transofmation d'un programme en appliquant chaque mouvement.*)
+(* Fonction qui calcule toutes les étapes de transformation d'un programme en appliquant chaque mouvement.*)
 let calculate_steps (prog : instruction list) (opts : options) : point list =
   (* Définir le point de départ *)
   let start_pos = match opts.start_point with
     | Some p -> p
-    | None -> { x = 0.0; y = 0.0 }  (* Point de départ par défaut *)
+    | None -> { x = 0.0; y = 0.0 }  (* Par défaut *)
   in
 
   (* Fonction récursive qui calcule chaque étape du programme. *)
@@ -292,7 +294,7 @@ let display_cumulative_steps (opts : options) (steps : point list) (current_inde
       let x = center_x + int_of_float (float_of_int i *. 10.0 *. scale_x) in
       Graphics.moveto x (center_y - 5);
       Graphics.lineto x (center_y + 5);
-      (* Ajouter les étiquettes tous les 5 unités *)
+      (* Ajouter les étiquettes toutes les 5 unités *)
       if i mod 2 = 0 then
         Graphics.draw_string (string_of_int i);
       draw_x_graduations (i + 1)
@@ -307,7 +309,7 @@ let display_cumulative_steps (opts : options) (steps : point list) (current_inde
       let y = center_y + int_of_float (float_of_int i *. 10.0 *. scale_y) in
       Graphics.moveto (center_x - 5) y;
       Graphics.lineto (center_x + 5) y;
-      (* Ajouter les étiquettes tous les 5 unités *)
+      (* Ajouter les étiquettes toutes les 5 unités *)
       if i mod 2 = 0 && i <> 0 then
         Graphics.draw_string (string_of_int i);
       draw_y_graduations (i + 1)
@@ -319,6 +321,7 @@ let display_cumulative_steps (opts : options) (steps : point list) (current_inde
   (* Dessiner le chemin cumulatif *)
   let rec draw_path = function
     | [] | [_] -> () (* Pas de chemin à dessiner pour 0 ou 1 point *)
+
     | pos1 :: pos2 :: rest ->
         Graphics.moveto
           (center_x + int_of_float (pos1.x *. scale_x))
@@ -402,7 +405,6 @@ let run_interpreter (opts : options) (prog : instruction list) : unit =
       options;
   in
 
-  (* Fonction pour gérer l'affichage et la navigation *)
 (* Fonction pour gérer l'affichage et la navigation *)
 let rec loop () =
   (* Effacer la fenêtre *)
@@ -417,14 +419,17 @@ let rec loop () =
   (* Obtenir les coordonnées de la souris *)
   let mouse_x, mouse_y = Graphics.mouse_pos () in
 
-  (* Calculer les coordonnées de la souris par rapport au centre de l'écran *)
+  (* Calculer les coordonnées de la souris par rapport au centre de l'écran et appliquer l'échelle *)
   let center_x, center_y = get_center () in
-  let adjusted_x = float_of_int (mouse_x - center_x) in
-  let adjusted_y = float_of_int (center_y - mouse_y) in
+  let scale_x = float_of_int (Graphics.size_x ()) /. 200.0 *. !zoom_factor in
+  let scale_y = float_of_int (Graphics.size_y ()) /. 200.0 *. !zoom_factor in
 
-  (* Effacer les anciennes coordonnées affichées uniquement *)
-  Graphics.set_color (color_to_graphics (Option.get opts.background_color));  (* Utiliser la couleur d'arrière-plan pour "effacer" l'ancien texte *)
-  Graphics.fill_rect 10 10 200 20;  (* Effacer l'ancienne zone d'affichage des coordonnées *)
+  (* Les coordonnées de la souris sont dans l'espace graphique, il faut les ajuster par rapport au centre *)
+  let adjusted_x = (float_of_int (mouse_x - center_x)) /. scale_x in
+  let adjusted_y = (float_of_int (mouse_y - center_y)) /. scale_y in
+
+  Graphics.set_color (color_to_graphics (Option.get opts.background_color));
+  Graphics.fill_rect 10 10 200 20;
 
   (* Afficher les coordonnées de la souris ajustées *)
   let text_color = 
@@ -433,7 +438,7 @@ let rec loop () =
     | None -> Graphics.black 
   in
   Graphics.set_color text_color;
-  Graphics.moveto 10 10;  (* Définir la position en haut à gauche *)
+  Graphics.moveto 10 10;
   Graphics.draw_string (Printf.sprintf "Coord: (%.2f, %.2f)" adjusted_x adjusted_y);
 
   (* Vérifier si une touche a été pressée *)
@@ -472,8 +477,6 @@ let rec loop () =
   loop ()
 
 
-
-
 (* main : string list -> unit *)
 (* Main pour démarrer le programme avec les arguments de la ligne de commande. *)
 let main (args : string list) : unit =
@@ -501,8 +504,7 @@ let () =
     main (List.tl (Array.to_list Sys.argv))
   with
   | Graphics.Graphic_failure _ ->
-    (* On ignore simplement l'exception levée lors de la fermeture de la fenêtre. *)
+    (* On ignore les exceptions levées lors de la fermeture de la fenêtre. *)
     ()
   | ex ->
-    (* Autres exceptions inattendues : on les affiche. *)
     Printf.printf "Erreur inattendue : %s\n%!" (Printexc.to_string ex)
