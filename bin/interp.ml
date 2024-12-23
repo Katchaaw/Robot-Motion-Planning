@@ -60,6 +60,7 @@ type options = {
   point_color: color option;
   window_size: (int * int) option;
   start_point: point option;
+  print_code: bool;
 }
 
 
@@ -114,6 +115,10 @@ let parse_args (args : string list) : options =
       let start = { x = float_of_string x; y = float_of_string y } in
       parse { opts with start_point = Some start } rest
 
+    (* Ajouter l'option -print pour afficher le code exécuté *)
+    | "-print" :: rest -> 
+      parse { opts with print_code = true } rest
+
     (* Terminer le parsing si aucune autre option n'est trouvée *)
     | [] -> opts
 
@@ -121,7 +126,7 @@ let parse_args (args : string list) : options =
 
   in
   parse { abs_rectangle = None; show_points = false; background_color = None;
-          foreground_color = None; rectangle_color = None; point_color = None; window_size = None; start_point = None} args
+          foreground_color = None; rectangle_color = None; point_color = None; window_size = None; start_point = None; print_code = false} args
 
 
 (* ############### Interpréteur ############### *)
@@ -182,8 +187,6 @@ let apply_colors (opts : options) : unit =
    | None -> ())
 
 
-
-
 (* take : int -> 'a list -> 'a list *)
 (* Fonction qui prend les n premiers éléments d'une liste *)
 let rec take (n : int) (lst : 'a list) : 'a list =
@@ -206,38 +209,43 @@ let calculate_steps (prog : instruction list) (opts : options) : point list =
   let rec aux current_pos program =
     match program with
     | [] -> []
-
+  
     (* Applique la translation *)
     | Move (Translate vector) :: rest ->
+        if opts.print_code then Printf.printf "Move (Translate { x = %.2f; y = %.2f })\n" vector.x vector.y;
         let new_pos = translate vector current_pos in
         new_pos :: aux new_pos rest
-
+  
     (* Applique la rotation *)
     | Move (Rotate (center, angle)) :: rest ->
+        if opts.print_code then Printf.printf "Move (Rotate ({ x = %.2f; y = %.2f }, %.2f))\n" center.x center.y angle;
         let new_pos = rotate current_pos angle center in
         new_pos :: aux new_pos rest
-
+  
     (* Répéter n fois les sous-programmes et accumuler les résultats *)
-    | Repeat (n, sub_program) :: rest -> 
-      let repeated_steps = 
-        let rec repeat n current_pos =
-          if n <= 0 then []
-          else
-            let sub_steps = aux current_pos sub_program in
-            let last_pos = List.hd (List.rev sub_steps) in (* Récupérer la dernière position *)
-            sub_steps @ repeat (n-1) last_pos (* Répéter n fois *)
+    | Repeat (n, sub_program) :: rest ->
+        if opts.print_code then Printf.printf "Repeat (%d, ...)\n" n;
+        let repeated_steps = 
+          let rec repeat n current_pos =
+            if n <= 0 then []
+            else
+              let sub_steps = aux current_pos sub_program in
+              let last_pos = List.hd (List.rev sub_steps) in (* Récupérer la dernière position *)
+              sub_steps @ repeat (n-1) last_pos (* Répéter n fois *)
+          in
+          repeat n current_pos
         in
-        repeat n current_pos
-      in
-      (* Concaténer les étapes répétées avec le reste du programme *)
-      repeated_steps @ aux (List.hd (List.rev repeated_steps)) rest
-
+        (* Concaténer les étapes répétées avec le reste du programme *)
+        repeated_steps @ aux (List.hd (List.rev repeated_steps)) rest
+  
+    (* Choisir aléatoirement entre prog1 et prog2 *)
     | Either (prog1, prog2) :: rest ->
-        (* Choisir aléatoirement entre prog1 et prog2 *)
+        if opts.print_code then Printf.printf "Either (...) \n";
         let chosen_prog = if Random.bool () then prog1 else prog2 in
         let sub_steps = aux current_pos chosen_prog in
         let last_pos = List.hd (List.rev sub_steps) in
         sub_steps @ aux last_pos rest
+  
   in
   start_pos :: aux start_pos prog
 

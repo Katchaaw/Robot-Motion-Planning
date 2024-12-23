@@ -12,6 +12,7 @@ type options = {
   point_color : color option;
   window_size : (int * int) option;
   start_point : Pf5.Geo.coord2D option;
+  print_code: bool;
 }
 val parse_args : string list -> options
 val apply_colors : options -> unit
