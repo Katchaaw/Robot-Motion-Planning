@@ -176,4 +176,3 @@ let over_approximate (prog : program) (r : rectangle) : rectangle =
 let feasible_target_reached (prog : program) (initial_rect : rectangle) (target : rectangle) : bool =
   let over_approx = over_approximate prog initial_rect in
   inclusion over_approx target
-

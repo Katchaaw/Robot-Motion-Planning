@@ -22,7 +22,6 @@ type rectangle = {
 }
 
 
-
 (*############ Début du code ##############*)
 
 (* translate : vector -> point -> point *)
@@ -85,6 +84,7 @@ let corners (r :rectangle) : point list =
 let rectangle_of_list (pl : point list) : rectangle = 
   match pl with
   |[] -> failwith "La liste de points est vide"
+
   |p :: ps ->
     (* Utilisation de fold_left pour trouver les min et max des coordonnées x et y *)
     (* À chaque point de la liste, on met à jour les bornes min et max de telle sorte que :
@@ -96,5 +96,6 @@ let rectangle_of_list (pl : point list) : rectangle =
       List.fold_left(fun (xmin, xmax, ymin, ymax) point ->
         (min xmin point.x, max xmax point.x, min ymin point.y, max ymax point.y)
       ) (p.x, p.x, p.y, p.y) ps 
+      
   in
   { x_min; x_max; y_min; y_max }

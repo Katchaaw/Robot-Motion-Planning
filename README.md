@@ -9,7 +9,7 @@ Pour commencer, installez le gestionnaire de paquets [`opam`](https://opam.ocaml
 Placez-vous dans le répertoire cloné.
 De là, exécutez les commandes suivantes, qui créent un switch `opam` local en y installant les paquets nécessaires :
 
-```
+```OCaml
 opam update
 opam switch create . 4.14.1 -y --deps-only
 ```
@@ -35,7 +35,7 @@ La commande pour compiler le projet est `dune build`,
 et celle pour compiler et lancer le main est `dune exec interp` suivie des options et des arguments éventuels.
 Exemple : `dune exec interp -- -abs 10 10 20 20 -cr -bc 255 255 255 -fc 0 0 0 -rc 255 0 0 -pc 0 0 255 -size 1080 720 -print 1`
 
-## Options :
+## Options
 
 -abs X_MIN Y_MIN X_MAX Y_MAX :
     Définit la zone d'affichage des rectangles et l'approximation initiale qui doit contenir le point (0, 0).
@@ -63,3 +63,8 @@ Exemple : `dune exec interp -- -abs 10 10 20 20 -cr -bc 255 255 255 -fc 0 0 0 -r
 
 -print (WIP):
     Affiche les lignes du code exécutées dans la sortie standard.
+
+## Dernières remarques
+
+- Nous n'avons pas eu le temps de finir l'implémentation de l'option -print.
+- La touche r qui permettait de forcer le redimensionnement ne sert plus vraiment maintenant que la boucle est dynamique.

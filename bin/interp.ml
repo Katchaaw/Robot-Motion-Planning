@@ -143,7 +143,7 @@ let get_center () =
 
 
 (* apply_colors : options -> unit *)
-(* Appliquer les couleurs et redessiner le rectangle selon les coordonnées centrées sur (0,0) *)
+(* Appliquer les couleurs et dessiner -abs *)
 let apply_colors (opts : options) : unit =
   (* Appliquer la couleur de l'arrière-plan *)
   (match opts.background_color with
@@ -468,8 +468,9 @@ let rec loop () =
       loop ()
 
     | _ -> loop () (* Continuer *)
+
   else
-    (* Si aucune touche n'est pressée, on continue à actualiser la position de la souris *)
+    (* Si aucune touche n'est pressée, on continue à actualiser pour la position de la souris *)
     Unix.sleepf 0.05;
     loop ()
 
