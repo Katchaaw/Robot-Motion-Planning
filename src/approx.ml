@@ -12,28 +12,23 @@ let sample (r : rectangle) : point =
   let y_rand = Random.float (r.y_max -. r.y_min) +. r.y_min in
   { x = x_rand; y = y_rand }
   
-
-(* Fonction pour transformer les coins d'un rectangle selon une transformation donnée *)
-let transform_corners (t : transformation) (corners : point list) : point list =
+  
+let transform_rect (t : transformation) (r : rectangle) : rectangle =
   match t with
   | Translate v ->
-      (* Appliquer la translation à chaque coin *)
-      List.map (fun p -> translate v p) corners
-  | Rotate (c, alpha) ->
-      (* Appliquer la rotation à chaque coin *)
-      List.map (fun p -> rotate c alpha p) corners
+      (* Translation : On translate directement les bornes du rectangle *)
+      {
+        x_min = r.x_min +. v.x;
+        x_max = r.x_max +. v.x;
+        y_min = r.y_min +. v.y;
+        y_max = r.y_max +. v.y;
+      }
+  | Rotate (center, angle) ->
+      (* Rotation : On calcule les images des coins du rectangle *)
+      let rotated_corners = List.map (rotate center angle) (corners r) in
+      (* On trouve le plus petit rectangle contenant tous les points après rotation *)
+      rectangle_of_list rotated_corners
 
-
-(* Transforme un rectangle en appliquant une transformation *)
-let transform_rect (t : transformation) (r : rectangle) : rectangle =
-  let corners = corners r in
-  let transformed_corners = transform_corners t corners in
-  (* Calcul de l'enveloppe englobante en utilisant les coins transformés *)
-  let x_min = List.fold_left (fun acc p -> min acc p.x) max_float transformed_corners in
-  let x_max = List.fold_left (fun acc p -> max acc p.x) min_float transformed_corners in
-  let y_min = List.fold_left (fun acc p -> min acc p.y) max_float transformed_corners in
-  let y_max = List.fold_left (fun acc p -> max acc p.y) min_float transformed_corners in
-  { x_min; x_max; y_min; y_max }
 
 
 (* run_rect : program -> rectangle -> rectangle list *)
@@ -129,31 +124,31 @@ let run_polymorphe (transform : transformation -> 'a -> 'a) (prog : program) (in
 
 
 
-(* Fonction qui calcule la surapproximation du rectangle après exécution d'un programme *)
-let over_approximate (prog : program) (r : rectangle) : rectangle =
-  let rec execute prog acc_rect =
-    match prog with
-    | [] -> acc_rect
-    | Move t :: rest ->
-        let new_rect = transform_rect t acc_rect in
-        execute rest new_rect
-    | Repeat (n, sub_prog) :: rest ->
-        let rec repeat n current_rect =
-          if n = 0 then current_rect
-          else repeat (n - 1) (execute sub_prog current_rect)
-        in
-        execute rest (repeat n acc_rect)
-    | Either (prog1, prog2) :: rest ->
-        let rect1 = execute prog1 acc_rect in
-        let rect2 = execute prog2 acc_rect in
-        {
-          x_min = min rect1.x_min rect2.x_min;
-          x_max = max rect1.x_max rect2.x_max;
-          y_min = min rect1.y_min rect2.y_min;
-          y_max = max rect1.y_max rect2.y_max;
-        }
-  in
-  execute prog r
+  let over_approximate (prog : program) (r : rectangle) : rectangle =
+    let rec execute prog acc_rect =
+      match prog with
+      | [] -> acc_rect
+      | Move t :: rest ->
+          let new_rect = transform_rect t acc_rect in
+          execute rest new_rect
+      | Repeat (n, sub_prog) :: rest ->
+          let rec repeat n current_rect =
+            if n = 0 then current_rect
+            else repeat (n - 1) (execute sub_prog current_rect)
+          in
+          execute rest (repeat n acc_rect)
+      | Either (prog1, prog2) :: rest ->
+          let rect1 = execute prog1 acc_rect in
+          let rect2 = execute prog2 acc_rect in
+          {
+            x_min = min rect1.x_min rect2.x_min;
+            x_max = max rect1.x_max rect2.x_max;
+            y_min = min rect1.y_min rect2.y_min;
+            y_max = max rect1.y_max rect2.y_max;
+          }
+    in
+    execute prog r
+  
 
 
 
