@@ -59,4 +59,4 @@ Exemple : `dune exec interp -- -abs 10 10 20 20 -cr -bc 255 255 255 -fc 0 0 0 -r
     Définit la taille de la fenêtre en pixels. W est la largeur et H est la hauteur.
 
 -start X Y :
-	Définit le point de départ du programme. Par défaut, il est initialisé à (0,0)
+    Définit le point de départ du programme. Par défaut, il est initialisé à (0,0).

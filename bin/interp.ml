@@ -352,7 +352,7 @@ let run_interpreter (opts : options) (prog : instruction list) : unit =
         (* Vérifier la taille minimale de la fenêtre *)
         if w < 500 || h < 500 then (
           Printf.printf
-            "Attention : La taille spécifiée (%dx%d) est trop petite. La taille minimale (400x400) sera appliquée.\n%!"
+            "Attention : La taille spécifiée (%dx%d) est trop petite. La taille minimale (500x500) sera appliquée.\n%!"
             w h;
           max 500 w, max 500 h
         ) else w, h
@@ -374,25 +374,23 @@ let run_interpreter (opts : options) (prog : instruction list) : unit =
       "P : ETAPE PRECEDENTE";
       "R : REDIMENSIONNEMENT";
       "Q : QUITTER";
-    ] 
-  in
+    ] in
+    let x = Graphics.size_x () - 150 in
+    let y_start = Graphics.size_y () - 20 in
 
-  let x = Graphics.size_x () - 150 in
-  let y_start = Graphics.size_y () - 20 in
+    (* Définir la couleur du texte selon la couleur de premier plan *)
+    let text_color = 
+      match opts.foreground_color with
+      | Some color -> color_to_graphics color  
+      | None -> Graphics.black 
+    in
+    Graphics.set_color text_color;
 
-  (* Définir la couleur du texte selon la couleur de premier plan *)
-  let text_color = 
-    match opts.foreground_color with
-    | Some color -> color_to_graphics color  
-    | None -> Graphics.black 
-  in
-  Graphics.set_color text_color;
-
-  List.iteri
-    (fun i option ->
-      Graphics.moveto x (y_start - (i * 20));
-      Graphics.draw_string option)
-    options
+    List.iteri
+      (fun i option ->
+        Graphics.moveto x (y_start - (i * 20));
+        Graphics.draw_string option)
+      options;
   in
 
   (* Fonction pour gérer l'affichage et la navigation *)
@@ -406,25 +404,52 @@ let run_interpreter (opts : options) (prog : instruction list) : unit =
     (* Afficher les options clavier *)
     display_options ();
 
-    (* Gérer les entrées utilisateur *)
-    let key = Graphics.read_key () in
-    match key with
-    | 'n' when !current_step < total_steps - 1 -> (* Étape suivante *)
-      incr current_step;
+    (* Obtenir les coordonnées de la souris *)
+    let mouse_x, mouse_y = Graphics.mouse_pos () in
+
+    (* Calculer les coordonnées de la souris par rapport au centre de l'écran *)
+    let center_x = Graphics.size_x () / 2 in
+    let center_y = Graphics.size_y () / 2 in
+    let adjusted_x = float_of_int (mouse_x - center_x) in
+    let adjusted_y = float_of_int (center_y - mouse_y) in
+
+    (* Effacer les anciennes coordonnées affichées uniquement *)
+    Graphics.set_color (color_to_graphics (Option.get opts.background_color));  (* Utiliser la couleur d'arrière-plan pour "effacer" l'ancien texte *)
+    Graphics.fill_rect 10 10 200 20;  (* Effacer l'ancienne zone d'affichage des coordonnées *)
+
+    (* Afficher les coordonnées de la souris ajustées *)
+    let text_color = 
+      match opts.foreground_color with
+      | Some color -> color_to_graphics color  
+      | None -> Graphics.black 
+    in
+    Graphics.set_color text_color;
+    Graphics.moveto 10 10;  (* Définir la position en haut à gauche *)
+    Graphics.draw_string (Printf.sprintf "Coord: (%.2f, %.2f)" adjusted_x adjusted_y);
+
+    (* Vérifier si une touche a été pressée *)
+    if Graphics.key_pressed () then
+      let key = Graphics.read_key () in
+      match key with
+      | 'n' when !current_step < total_steps - 1 -> (* Étape suivante *)
+        incr current_step;
+        loop ()
+      | 'p' when !current_step > 0 -> (* Étape précédente *)
+        decr current_step;
+        loop ()
+      | 'r' -> loop () (* Force le redimensionnement *)
+      | 'q' ->  Graphics.close_graph () (* Quitter *)
+      | _ -> loop () (* Continuer *)
+    else
+      (* Si aucune touche n'est pressée, on continue à actualiser la position de la souris *)
+      Unix.sleepf 0.05;
       loop ()
-
-    | 'p' when !current_step > 0 -> (* Étape précédente *)
-      decr current_step;
-      loop ()
-
-    | 'r' -> loop () (* Force le redimensionnement*)
-
-    | 'q' ->  Graphics.close_graph () (* Quitter *)
-
-    | _ -> loop () (* Continuer *)
   in 
+  
   apply_colors opts;
   loop ()
+
+
 
 
 (* main : string list -> unit *)
