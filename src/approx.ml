@@ -6,29 +6,39 @@ open Interp
 let () = Random.self_init ()
 
 (* sample : rectangle -> point *)
-(* Renvoi un point choisi aléatoirement à l'intérieur du rectangle passé en paramètre. *)
+(* Renvoie un point choisi aléatoirement à l'intérieur du rectangle passé en paramètre. *)
 let sample (r : rectangle) : point =
   let x_rand = Random.float (r.x_max -. r.x_min) +. r.x_min in
   let y_rand = Random.float (r.y_max -. r.y_min) +. r.y_min in
   { x = x_rand; y = y_rand }
   
-  
-let transform_rect (t : transformation) (r : rectangle) : rectangle =
+
+(* transform_corners : transformation -> point list -> point list *)
+(* Applique une transformation (translation ou rotation) à chaque coin du rectangle. *)
+let transform_corners (t : transformation) (corners : point list) : point list =
   match t with
   | Translate v ->
-      (* Translation : On translate directement les bornes du rectangle *)
-      {
-        x_min = r.x_min +. v.x;
-        x_max = r.x_max +. v.x;
-        y_min = r.y_min +. v.y;
-        y_max = r.y_max +. v.y;
-      }
-  | Rotate (center, angle) ->
-      (* Rotation : On calcule les images des coins du rectangle *)
-      let rotated_corners = List.map (rotate center angle) (corners r) in
-      (* On trouve le plus petit rectangle contenant tous les points après rotation *)
-      rectangle_of_list rotated_corners
+      (* Appliquer la translation à chaque coin *)
+      List.map (fun p -> translate v p) corners
 
+  | Rotate (c, alpha) ->
+      (* Appliquer la rotation à chaque coin *)
+      List.map (fun p -> rotate c alpha p) corners
+
+
+(* transform_rect : transformation -> rectangle -> rectangle *)
+(* Renvoie l’image d’un rectangle par la transformation donnée en argument. *)
+let transform_rect (t : transformation) (r : rectangle) : rectangle =
+  let corners = corners r in
+  let transformed_corners = transform_corners t corners in
+
+  (* Calcul l'image du rectangle en utilisant les coins transformés *)
+  let x_min = List.fold_left (fun acc p -> min acc p.x) max_float transformed_corners in
+  let x_max = List.fold_left (fun acc p -> max acc p.x) min_float transformed_corners in
+  let y_min = List.fold_left (fun acc p -> min acc p.y) max_float transformed_corners in
+  let y_max = List.fold_left (fun acc p -> max acc p.y) min_float transformed_corners in
+
+  { x_min; x_max; y_min; y_max }
 
 
 (* run_rect : program -> rectangle -> rectangle list *)
@@ -37,15 +47,19 @@ let transform_rect (t : transformation) (r : rectangle) : rectangle =
 let run_rect (prog : program) (initial_rect : rectangle) : rectangle list =
   let rec execute (prog : program) (current_rect : rectangle) (visited : rectangle list) : rectangle list =
     match prog with
-    | [] -> List.rev visited (* Fin du programme, renvoyer la liste des rectangles visités *)
+    | [] -> List.rev visited
+
     | instruction :: rest ->
       let (intermediate_rects, new_rect) =
         match instruction with
+
+        (* Appliquer les translations / rotations *)
         | Move t ->
           let new_rect = transform_rect t current_rect in
           ([new_rect], new_rect)
+
+        (* Répéter n fois les sous-programmes*)
         | Repeat (n, sub_prog) ->
-          (* Répéter n fois l'exécution du sous-programme *)
           let rec repeat n acc_rect acc_rects =
             if n = 0 then (acc_rects, acc_rect)
             else
@@ -54,20 +68,19 @@ let run_rect (prog : program) (initial_rect : rectangle) : rectangle list =
               repeat (n - 1) new_rect (sub_rects @ acc_rects)
           in
           repeat n current_rect []
+
+        (* Choix aléatoire entre deux sous-programmes *)
         | Either (prog1, prog2) ->
-          (* Choix aléatoire entre deux sous-programmes *)
           let chosen_prog = if Random.int 2 = 0 then prog1 else prog2 in
           let rects = execute chosen_prog current_rect [] in
           (rects, List.hd rects)
       in
-      (* Ajout de l'impression ici pour déboguer *)
-      (*Printf.printf "Rectangles visités jusqu'à présent : %d\n" (List.length (intermediate_rects @ visited));*)
-      (*List.iter (fun r -> Printf.printf "Rectangle: %f, %f, %f, %f\n" r.x_min r.x_max r.y_min r.y_max) (intermediate_rects @ visited);*)
       execute rest new_rect (intermediate_rects @ visited)
   in
   execute prog initial_rect [initial_rect]
 
-
+(* inclusion : rectangle -> rectangle -> bool *)
+(* Vérifie si le rectangle r est inclus dans le rectangle t. *)
 let inclusion (r : rectangle) (t : rectangle) : bool =
   r.x_min >= t.x_min && r.x_max <= t.x_max &&
   r.y_min >= t.y_min && r.y_max <= t.y_max
@@ -84,26 +97,29 @@ let target_reached_rect (prog : program) (initial_rect : rectangle) (target : re
     (* On simule l'exécution du programme sur l'approximation initiale *)
     let visited_rects = run_rect program initial_rect in
     match List.rev visited_rects with
-    | [] -> false (* Si aucun rectangle visité = echec*)
-    | final_rect :: _ -> inclusion final_rect target
+      | [] -> false 
+      | final_rect :: _ -> inclusion final_rect target
   ) all_programs
 
 
-  
 (* run_polymorphe : (transformation -> 'a -> 'a) -> program -> 'a -> 'a list *)
 (* Fonction polymorphe pour exécuter un programme sur un état quelconque. *)
 let run_polymorphe (transform : transformation -> 'a -> 'a) (prog : program) (initial_state : 'a) : 'a list =
   let rec execute (prog : program) (current_state : 'a) (visited : 'a list) : 'a list =
     match prog with
     | [] -> List.rev visited (* Fin du programme, renvoyer les états visités *)
+    
     | instruction :: rest ->
       let (intermediate_states, new_state) =
         match instruction with
+        (* Appliquer les translations / rotations *)
         | Move t ->
           let new_state = transform t current_state in
           ([new_state], new_state)
+
+        
+        (* Répéter n fois l'exécution du sous-programme *)
         | Repeat (n, sub_prog) ->
-          (* Répéter n fois l'exécution du sous-programme *)
           let rec repeat n acc_state acc_states =
             if n = 0 then (acc_states, acc_state)
             else
@@ -112,8 +128,9 @@ let run_polymorphe (transform : transformation -> 'a -> 'a) (prog : program) (in
               repeat (n - 1) new_state (sub_states @ acc_states)
           in
           repeat n current_state []
+
+        (* Choix aléatoire entre deux sous-programmes *)       
         | Either (prog1, prog2) ->
-          (* Choix aléatoire entre deux sous-programmes *)
           let chosen_prog = if Random.int 2 = 0 then prog1 else prog2 in
           let states = execute chosen_prog current_state [] in
           (states, List.hd states)
@@ -124,46 +141,45 @@ let run_polymorphe (transform : transformation -> 'a -> 'a) (prog : program) (in
 
 
 
-  let over_approximate (prog : program) (r : rectangle) : rectangle =
-    let rec execute prog acc_rect =
-      match prog with
-      | [] -> acc_rect
-      | Move t :: rest ->
-          let new_rect = transform_rect t acc_rect in
-          execute rest new_rect
-      | Repeat (n, sub_prog) :: rest ->
-          let rec repeat n current_rect =
-            if n = 0 then current_rect
-            else repeat (n - 1) (execute sub_prog current_rect)
-          in
-          execute rest (repeat n acc_rect)
-      | Either (prog1, prog2) :: rest ->
-          let rect1 = execute prog1 acc_rect in
-          let rect2 = execute prog2 acc_rect in
-          {
-            x_min = min rect1.x_min rect2.x_min;
-            x_max = max rect1.x_max rect2.x_max;
-            y_min = min rect1.y_min rect2.y_min;
-            y_max = max rect1.y_max rect2.y_max;
-          }
-    in
-    execute prog r
-  
+(* over_approximate : program -> rectangle -> rectangle *)
+(* Fonction qui calcule la surapproximation d'un rectangle après l'exécution d'un programme. *)
+let over_approximate (prog : program) (r : rectangle) : rectangle =
+  let rec execute prog acc_rect =
+    match prog with
+    | [] -> acc_rect
+    | Move t :: rest ->
+        let new_rect = transform_rect t acc_rect in
+        execute rest new_rect
+    | Repeat (n, sub_prog) :: rest ->
+        let rec repeat n current_rect =
+          if n = 0 then current_rect
+          else repeat (n - 1) (execute sub_prog current_rect)
+        in
+        execute rest (repeat n acc_rect)
+    | Either (prog1, prog2) :: rest ->
+        let rect1 = execute prog1 acc_rect in
+        let rect2 = execute prog2 acc_rect in
+        {
+          x_min = min rect1.x_min rect2.x_min;
+          x_max = max rect1.x_max rect2.x_max;
+          y_min = min rect1.y_min rect2.y_min;
+          y_max = max rect1.y_max rect2.y_max;
+        }
+  in
+  execute prog r
 
-
-
-(* Vérifie si un rectangle r1 est inclus dans un rectangle r2 *)
+(* is_rectangle_included : rectangle -> rectangle -> bool *)
+(* Vérifie si un rectangle r1 est inclus dans un rectangle r2. *)
 let is_rectangle_included (r1 : rectangle) (r2 : rectangle) : bool =
   r1.x_min >= r2.x_min &&
   r1.x_max <= r2.x_max &&
   r1.y_min >= r2.y_min &&
   r1.y_max <= r2.y_max
 
+
 (* feasible_target_reached : program -> rectangle -> rectangle -> bool *)
 (* Vérifie si la surapproximation des positions atteignables par le robot est incluse dans la zone cible *)
 let feasible_target_reached (prog : program) (initial_rect : rectangle) (target : rectangle) : bool =
   let approx_rect = over_approximate prog initial_rect in
-  Printf.printf "Approx Rect: x_min=%f, x_max=%f, y_min=%f, y_max=%f\n"
-    approx_rect.x_min approx_rect.x_max approx_rect.y_min approx_rect.y_max;
   inclusion approx_rect target
 
