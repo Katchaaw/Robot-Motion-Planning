@@ -35,8 +35,7 @@ La commande pour compiler le projet est `dune build`,
 et celle pour compiler et lancer le main est `dune exec interp` suivie des options et des arguments éventuels.
 Exemple : 
 ```OCaml
-opam update
-opam switch create . 4.14.1 -y --deps-only
+dune exec interp -- -abs 10 10 20 20 -cr -bc 255 255 255 -fc 0 0 0 -rc 255 0 0 -pc 0 0 255 -size 1080 720 -print 1
 ```
 
 ## Options
