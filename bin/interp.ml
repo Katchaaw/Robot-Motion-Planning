@@ -1,5 +1,6 @@
 open Pf5.Geo 
 open Pf5.Interp 
+(* open Pf5.Approx *)
 
 
 let () = Random.self_init () 
@@ -37,6 +38,20 @@ let program3 = [
     ]
   )
 ]
+
+let program4 = [
+  Repeat (100, [
+    Either (
+      [Move(Translate {x = 1.; y = 0.})],
+      [Move(Translate {x = -1.; y = 0.})]
+    );
+    Either (
+      [Move(Translate {x = 0.; y = 1.})],
+      [Move(Translate {x = 0.; y = -1.})]
+    )
+  ])
+]
+
 
 (* ############### Gestion des options ############### *)
 
@@ -100,7 +115,6 @@ let parse_args args =
         let height = int_of_string h in
         parse { opts with window_size = Some (width, height) } rest
 
-
     (* Gérer l'option -print pour afficher les étapes *)
     | "-print" :: rest ->
       parse { opts with print_steps = true } rest
@@ -119,6 +133,7 @@ let parse_args args =
   parse { abs_rectangle = None; show_points = false; background_color = None;
           foreground_color = None; rectangle_color = None; point_color = None; window_size = None; print_steps = false; start_point = None} args
 
+          
 (* ############### Interpréteur ############### *)
 (* Appliquer les couleurs et redessiner le rectangle selon les coordonnées centrées sur (0,0) *)
 let apply_colors opts =
@@ -168,12 +183,16 @@ let apply_colors opts =
 
 (* ########################################################################################## *)
 
+(* Fonction pour afficher les approximations rectangulaires 
+let calculate_approximation program start_rect =
+  over_approximate program start_rect
+*)
+
 let rec take n lst =
   match (n, lst) with
   | 0, _ -> []
   | _, [] -> []
   | n, x :: xs -> x :: take (n - 1) xs
-
 
 (* Ajout d'une fonction pour calculer toutes les étapes d'un programme *)
 let calculate_steps prog opts =
@@ -309,7 +328,6 @@ let display_cumulative_steps opts steps current_index =
            3)
       steps_to_draw
 
-
 (* Exécution avec chemin cumulatif *)
 let run_interpreter opts prog =
   (* Vérifier la taille minimale de la fenêtre *)
@@ -414,9 +432,11 @@ let main args =
     | "1" -> program1
     | "2" -> program2
     | "3" -> program3
+    | "4" -> program4
     |  _ -> failwith "Programme non spécifié"
   in
-  run_interpreter opts prog
+  if prog != program4 then run_interpreter opts prog 
+  else run_interpreter opts prog 
 
 
 let () =
