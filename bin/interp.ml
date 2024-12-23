@@ -37,6 +37,14 @@ let program3 = [
   )
 ]
 
+(* Exemple de programme avec des rotations *)
+let program4 = [
+  Move (Translate { x = 25.0; y = 0.0 });
+  Move (Rotate ({ x = 0.0; y = 0.0 }, 90.0));  (* Rotation de 45 degrés autour du centre (0, 0) *)
+  Move (Translate { x = 25.0; y = 0.0 });
+  Move (Translate { x = 25.0; y = 0.0 });  (* Rotation de 90 degrés autour du centre (0, 0) *)
+]
+
 (* ############### Gestion des options ############### *)
 
 (* Type représentant les couleurs *)
@@ -51,7 +59,7 @@ type options = {
   rectangle_color: color option;
   point_color: color option;
   window_size: (int * int) option;
-  start_point: point option;  (* Nouveau champ pour le point de départ *)
+  start_point: point option;
 }
 
 
@@ -128,6 +136,14 @@ let apply_colors (opts : options) : unit =
        Graphics.fill_rect 0 0 (Graphics.size_x ()) (Graphics.size_y ())
    | None -> ());
 
+  (* Définir la couleur du texte selon la couleur de premier plan *)
+  let text_color = 
+    match opts.foreground_color with
+    | Some color -> color_to_graphics color  
+    | None -> Graphics.black  
+  in
+  Graphics.set_color text_color;
+
   (* Dessiner le rectangle si l'option -abs est spécifiée *)
   (match opts.abs_rectangle with
   | Some rect ->
@@ -155,15 +171,17 @@ let apply_colors (opts : options) : unit =
     Graphics.synchronize ()
   | None -> ());
 
+  (* Appliquer la couleur du point, si nécessaire *)
+  (match opts.point_color with
+  | Some color -> Graphics.set_color (color_to_graphics color)
+  | None -> ());
+
   (* Appliquer la couleur du premier plan *)
   (match opts.foreground_color with
    | Some color -> Graphics.set_color (color_to_graphics color)
-   | None -> ());
-
-  (* Appliquer la couleur du point, si nécessaire *)
-  (match opts.point_color with
-   | Some color -> Graphics.set_color (color_to_graphics color)
    | None -> ())
+
+
 
 
 (* take : int -> 'a list -> 'a list *)
@@ -246,7 +264,6 @@ let display_cumulative_steps (opts : options) (steps : point list) (current_inde
   let center_y = win_height / 2 in
 
   (* Dessiner l'axe des abscisses *)
-  Graphics.set_color Graphics.black;
   Graphics.moveto 0 center_y;
   Graphics.lineto win_width center_y;
 
@@ -258,7 +275,6 @@ let display_cumulative_steps (opts : options) (steps : point list) (current_inde
   let rec draw_x_graduations (i : int) =
     if i <= 10 && i >= -10 then begin
       let x = center_x + int_of_float (float_of_int i *. 10.0 *. scale_x) in
-      Graphics.set_color Graphics.black;
       Graphics.moveto x (center_y - 5);
       Graphics.lineto x (center_y + 5);
       (* Ajouter les étiquettes tous les 5 unités *)
@@ -274,7 +290,6 @@ let display_cumulative_steps (opts : options) (steps : point list) (current_inde
   let rec draw_y_graduations (i : int) =
     if i <= 10 && i >= -10 then begin
       let y = center_y + int_of_float (float_of_int i *. 10.0 *. scale_y) in
-      Graphics.set_color Graphics.black;
       Graphics.moveto (center_x - 5) y;
       Graphics.lineto (center_x + 5) y;
       (* Ajouter les étiquettes tous les 5 unités *)
@@ -290,7 +305,6 @@ let display_cumulative_steps (opts : options) (steps : point list) (current_inde
   let rec draw_path = function
     | [] | [_] -> () (* Pas de chemin à dessiner pour 0 ou 1 point *)
     | pos1 :: pos2 :: rest ->
-        Graphics.set_color (color_to_graphics (Option.get opts.foreground_color));
         Graphics.moveto
           (center_x + int_of_float (pos1.x *. scale_x))
           (center_y + int_of_float (pos1.y *. scale_y));
@@ -352,15 +366,25 @@ let run_interpreter (opts : options) (prog : instruction list) : unit =
       "P : ETAPE PRECEDENTE";
       "R : REDIMENSIONNEMENT";
       "Q : QUITTER";
-    ] in
-    let x = Graphics.size_x () - 150 in
-    let y_start = Graphics.size_y () - 20 in
-    Graphics.set_color Graphics.black;
-    List.iteri
-      (fun i option ->
-        Graphics.moveto x (y_start - (i * 20));
-        Graphics.draw_string option)
-      options
+    ] 
+  in
+
+  let x = Graphics.size_x () - 150 in
+  let y_start = Graphics.size_y () - 20 in
+
+  (* Définir la couleur du texte selon la couleur de premier plan *)
+  let text_color = 
+    match opts.foreground_color with
+    | Some color -> color_to_graphics color  
+    | None -> Graphics.black 
+  in
+  Graphics.set_color text_color;
+
+  List.iteri
+    (fun i option ->
+      Graphics.moveto x (y_start - (i * 20));
+      Graphics.draw_string option)
+    options
   in
 
   (* Fonction pour gérer l'affichage et la navigation *)
@@ -410,6 +434,7 @@ let main (args : string list) : unit =
     | "1" -> program1
     | "2" -> program2
     | "3" -> program3
+    | "4" -> program4
     |  _ -> failwith "Programme non spécifié"
   in
   run_interpreter opts prog
