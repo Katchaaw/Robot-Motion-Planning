@@ -1,14 +1,10 @@
-(*open Graphics*)
 open Pf5.Geo 
 open Pf5.Interp 
-(*open Pf5.Approx*)
 
-(*exception Quit;;*)
 
-let () = Random.self_init ()
+let () = Random.self_init () 
 
 (* ###############  Programmes passables en arguments ###############*)
-
 
 (* Exemple 1 : Déplacement simple en Carré *)
 let program1 = [
@@ -42,7 +38,6 @@ let program3 = [
   )
 ]
 
-
 (* ############### Gestion des options ############### *)
 
 (* Type représentant les couleurs *)
@@ -62,6 +57,7 @@ type options = {
   point_color: color option;
   window_size: (int * int) option;
   print_steps: bool;
+  start_point: point option;  (* Nouveau champ pour le point de départ *)
 }
 
 (* Fonction qui analyse les arguments passés en ligne de commande et configure les options *)
@@ -109,6 +105,11 @@ let parse_args args =
     | "-print" :: rest ->
       parse { opts with print_steps = true } rest
 
+    (* Gérer l'option -start pour le point de départ *)
+    | "-start" :: x :: y :: rest ->
+      let start = { x = float_of_string x; y = float_of_string y } in
+      parse { opts with start_point = Some start } rest
+
     (* Terminer le parsing si aucune autre option n'est trouvée *)
     | [] -> opts
 
@@ -116,49 +117,54 @@ let parse_args args =
 
   in
   parse { abs_rectangle = None; show_points = false; background_color = None;
-          foreground_color = None; rectangle_color = None; point_color = None; window_size = None; print_steps = false} args
-
-
-
+          foreground_color = None; rectangle_color = None; point_color = None; window_size = None; print_steps = false; start_point = None} args
 
 (* ############### Interpréteur ############### *)
+(* Appliquer les couleurs et redessiner le rectangle selon les coordonnées centrées sur (0,0) *)
 let apply_colors opts =
-
-  (* Dessiner le rectangle si l'option -abs est spécifiée *)
-  match opts.abs_rectangle with
-  | Some rect ->
-      (* Dessiner un rectangle avec les coordonnées définies dans -abs *)
-      Graphics.set_color (color_to_graphics (Option.get opts.rectangle_color));
-      Graphics.draw_rect
-        (int_of_float rect.x_min) (int_of_float rect.y_min)
-        (int_of_float (rect.x_max -. rect.x_min)) (int_of_float (rect.y_max -. rect.y_min))
-  | None -> ();
-
   (* Appliquer la couleur de l'arrière-plan *)
   (match opts.background_color with
    | Some color -> 
        Graphics.set_color (color_to_graphics color);
-       (* Remplir toute la fenêtre avec la couleur de fond *)
        Graphics.fill_rect 0 0 (Graphics.size_x ()) (Graphics.size_y ())
    | None -> ());
-  
+
+  (* Dessiner le rectangle si l'option -abs est spécifiée *)
+  (match opts.abs_rectangle with
+  | Some rect ->
+    (* Appliquer la couleur du rectangle *)
+    (match opts.rectangle_color with
+    | Some color -> Graphics.set_color (color_to_graphics color)
+    | None -> Graphics.set_color Graphics.black);
+
+    (* Calculer les coordonnées du rectangle en pixels, centrées sur (0,0) *)
+    let win_width = Graphics.size_x () in
+    let win_height = Graphics.size_y () in
+    let center_x = win_width / 2 in
+    let center_y = win_height / 2 in
+
+    let x_min = center_x + int_of_float (rect.x_min *. float_of_int win_width /. 200.0) in
+    let y_min = center_y + int_of_float (rect.y_min *. float_of_int win_height /. 200.0) in
+    let x_max = center_x + int_of_float (rect.x_max *. float_of_int win_width /. 200.0) in
+    let y_max = center_y + int_of_float (rect.y_max *. float_of_int win_height /. 200.0) in
+
+    let width = x_max - x_min in
+    let height = y_max - y_min in
+
+    (* Dessiner le rectangle *)
+    Graphics.fill_rect x_min y_min width height;
+    Graphics.synchronize ()  (* Assurez-vous que le dessin est affiché *)
+  | None -> ());
+
   (* Appliquer la couleur du premier plan *)
   (match opts.foreground_color with
    | Some color -> Graphics.set_color (color_to_graphics color)
    | None -> ());
-  
-  (* Appliquer la couleur du rectangle, si nécessaire *)
-  (match opts.rectangle_color with
-   | Some color -> Graphics.set_color (color_to_graphics color)
-   | None -> ());
-  
+
   (* Appliquer la couleur du point, si nécessaire *)
   (match opts.point_color with
    | Some color -> Graphics.set_color (color_to_graphics color)
    | None -> ())
-
-
-
 
 (* ########################################################################################## *)
 
@@ -170,7 +176,11 @@ let rec take n lst =
 
 
 (* Ajout d'une fonction pour calculer toutes les étapes d'un programme *)
-let calculate_steps prog =
+let calculate_steps prog opts =
+  let start_pos = match opts.start_point with
+    | Some p -> p
+    | None -> { x = 0.0; y = 0.0 }  (* Point de départ par défaut *)
+  in
   let rec aux current_pos program =
     match program with
     | [] -> []
@@ -189,25 +199,28 @@ let calculate_steps prog =
           if n <= 0 then []
           else
             let sub_steps = aux current_pos sub_program in
-            sub_steps @ repeat (n - 1) (List.hd (List.rev sub_steps)) (* Reprendre à la dernière position *)
+            let last_pos = List.hd (List.rev sub_steps) in
+            sub_steps @ repeat (n-1) last_pos
         in
         repeat n current_pos
       in
       repeated_steps @ aux (List.hd (List.rev repeated_steps)) rest
 
     | Either (prog1, prog2) :: rest ->
-        let chosen_prog = if Random.int 2 = 1 then prog1 else prog2 in
-        aux current_pos chosen_prog @ aux (List.hd (List.rev (aux current_pos chosen_prog))) rest
+        (* Choisir aléatoirement entre prog1 et prog2 *)
+        let chosen_prog = if Random.bool () then prog1 else prog2 in
+        let sub_steps = aux current_pos chosen_prog in
+        let last_pos = List.hd (List.rev sub_steps) in
+        sub_steps @ aux last_pos rest
   in
-  aux { x = 0.0; y = 0.0 } prog
-
-
-
+  start_pos :: aux start_pos prog
 
 
 let display_cumulative_steps opts steps current_index =
   (* Effacer la fenêtre *)
   Graphics.clear_graph ();
+
+  apply_colors opts;
 
   (* Récupérer la taille de la fenêtre *)
   let win_width = Graphics.size_x () in
@@ -254,7 +267,7 @@ let display_cumulative_steps opts steps current_index =
       Graphics.moveto (center_x - 5) y;
       Graphics.lineto (center_x + 5) y;
       (* Ajouter les étiquettes tous les 5 unités *)
-      if i mod 2 = 0 then
+      if i mod 2 = 0 && i <> 0 then
         Graphics.draw_string (string_of_int i);
       draw_y_graduations (i + 1)
     end
@@ -277,7 +290,7 @@ let display_cumulative_steps opts steps current_index =
   in
 
   (* Dessiner le chemin *)
-  let steps_to_draw = take (current_index + 2) ({ x = 0.0; y = 0.0 } :: steps) in
+  let steps_to_draw = take (current_index + 1) steps in
   draw_path steps_to_draw;
 
   (* Affichage des points si demandé *)
@@ -297,23 +310,42 @@ let display_cumulative_steps opts steps current_index =
       steps_to_draw
 
 
-
 (* Exécution avec chemin cumulatif *)
 let run_interpreter opts prog =
+  (* Vérifier la taille minimale de la fenêtre *)
+  let width, height =
+    match opts.window_size with
+    | Some (w, h) ->
+        if w < 500 || h < 500 then (
+          Printf.printf
+            "Attention : La taille spécifiée (%dx%d) est trop petite. La taille minimale (400x400) sera appliquée.\n%!"
+            w h;
+          max 500 w, max 500 h
+        ) else w, h
+    | None -> 1080, 720 (* Taille par défaut *)
+  in
+  Graphics.open_graph (Printf.sprintf " %dx%d" width height);
+  
   (* Pré-calculer toutes les étapes *)
-  let steps = calculate_steps prog in
+  let steps = calculate_steps prog opts in
 
   (* Initialiser l'état *)
   let current_step = ref 0 in
   let total_steps = List.length steps in
+
+  (* Définir les échelles initiales et le facteur de zoom *)
+  let scale_x = ref 1.0 in
+  let scale_y = ref 1.0 in
+  let zoom_factor = 1.2 in
 
   (* Fonction pour afficher les options clavier *)
   let display_options () =
     let options = [
       "N : ETAPE SUIVANTE";
       "P : ETAPE PRECEDENTE";
-      "O : ZOOM ARRIERE";
-      "I : ZOOM AVANT";
+      "R : REDIMENSIONNEMENT";
+      "I : ZOOM IN";
+      "O : ZOOM OUT";
       "Q : QUITTER";
     ] in
     let x = Graphics.size_x () - 150 in
@@ -328,47 +360,45 @@ let run_interpreter opts prog =
 
   (* Fonction pour gérer l'affichage et la navigation *)
   let rec loop () =
-      (* Effacer la fenêtre *)
-      Graphics.clear_graph ();
+    (* Effacer la fenêtre *)
+    Graphics.clear_graph ();
 
-      (* Afficher les étapes cumulatives jusqu'à l'étape actuelle *)
-      display_cumulative_steps opts steps !current_step;
+    (* Afficher les étapes cumulatives jusqu'à l'étape actuelle *)
+    display_cumulative_steps opts steps !current_step;
 
-      (* Afficher les options clavier *)
-      display_options ();
+    (* Afficher les options clavier *)
+    display_options ();
 
-      (* Gérer les entrées utilisateur *)
-      let key = Graphics.read_key () in
-      match key with
-      | 'n' when !current_step < total_steps - 1 -> (* Étape suivante *)
-          incr current_step;
-          loop ()
-      | 'p' when !current_step > 0 -> (* Étape précédente *)
-          decr current_step;
-          loop ()
-      | 'q' -> (* Quitter *)
-          Graphics.close_graph ()
-      | _ -> loop () (* Continuer *)
-  in
+    (* Gérer les entrées utilisateur *)
+    let key = Graphics.read_key () in
+    match key with
+    | 'n' when !current_step < total_steps - 1 -> (* Étape suivante *)
+      incr current_step;
+      loop ()
 
-  (* Initialiser la fenêtre graphique *)
-  Graphics.open_graph "";
-  Graphics.resize_window 1080 780;
-  (*
-  match opts.window_size with
-    | Some (x, y) -> 
-      let length = x in let width = y in
-      Graphics.resize_window length y;  (* Utilisation de la chaîne de taille directement *)
-    | None -> 
-      Graphics.resize_window 600 600;  (* Taille par défaut si aucune taille n'est spécifiée *)
-      *)
-    
+    | 'p' when !current_step > 0 -> (* Étape précédente *)
+      decr current_step;
+      loop ()
+
+    | 'i' -> (* Zoomer *)
+      scale_x := !scale_x *. zoom_factor;
+      scale_y := !scale_y *. zoom_factor;
+      loop ()  (* Redessiner avec la nouvelle échelle *)
+
+    | 'o' -> (* Dézoomer *)
+      scale_x := !scale_x /. zoom_factor;
+      scale_y := !scale_y /. zoom_factor;
+      loop ()  (* Redessiner avec la nouvelle échelle *)
+
+    | 'r' -> loop ()    (* Force un redimensionnement*)
+
+    | 'q' -> (* Quitter *)
+      Graphics.close_graph ()
+
+    | _ -> loop () (* Continuer *)
+  in 
   apply_colors opts;
   loop ()
-
-
-
-
 
 
 let main args =
@@ -387,6 +417,7 @@ let main args =
     |  _ -> failwith "Programme non spécifié"
   in
   run_interpreter opts prog
+
 
 let () =
   try
