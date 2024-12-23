@@ -131,6 +131,9 @@ let parse_args (args : string list) : options =
 
 (* ############### Interpréteur ############### *)
 
+(* Déclaration du facteur de zoom global *)
+let zoom_factor = ref 1.0
+
 (* Fonction pour obtenir les coordonnées du centre de l'écran *)
 let get_center () =
   let center_x = Graphics.size_x () / 2 in
@@ -168,10 +171,10 @@ let apply_colors (opts : options) : unit =
     let win_height = Graphics.size_y () in
     let center_x, center_y = get_center () in
 
-    let x_min = center_x + int_of_float (rect.x_min *. float_of_int win_width /. 200.0) in
-    let y_min = center_y + int_of_float (rect.y_min *. float_of_int win_height /. 200.0) in
-    let x_max = center_x + int_of_float (rect.x_max *. float_of_int win_width /. 200.0) in
-    let y_max = center_y + int_of_float (rect.y_max *. float_of_int win_height /. 200.0) in
+    let x_min = center_x + int_of_float (rect.x_min *. float_of_int win_width /. 200.0 *. !zoom_factor) in
+    let y_min = center_y + int_of_float (rect.y_min *. float_of_int win_height /. 200.0 *. !zoom_factor) in
+    let x_max = center_x + int_of_float (rect.x_max *. float_of_int win_width /. 200.0 *. !zoom_factor) in
+    let y_max = center_y + int_of_float (rect.y_max *. float_of_int win_height /. 200.0 *. !zoom_factor) in
 
     let width = x_max - x_min in
     let height = y_max - y_min in
@@ -269,8 +272,8 @@ let display_cumulative_steps (opts : options) (steps : point list) (current_inde
   let win_height = Graphics.size_y () in
 
   (* Calculer l'échelle en fonction de la taille de la fenêtre *)
-  let scale_x = float_of_int win_width /. 200.0 in
-  let scale_y = float_of_int win_height /. 200.0 in
+  let scale_x = float_of_int win_width /. 200.0 *. !zoom_factor in
+  let scale_y = float_of_int win_height /. 200.0 *. !zoom_factor in
 
   (* Dessiner l'axe des abscisses (x) et des ordonnées (y) au centre *)
   let center_x, center_y = get_center () in
@@ -376,6 +379,8 @@ let run_interpreter (opts : options) (prog : instruction list) : unit =
     let options = [
       "N : ETAPE SUIVANTE";
       "P : ETAPE PRECEDENTE";
+      "I : ZOOM IN";
+      "O : ZOOM OUT";
       "R : REDIMENSIONNEMENT";
       "Q : QUITTER";
     ] in
@@ -398,58 +403,72 @@ let run_interpreter (opts : options) (prog : instruction list) : unit =
   in
 
   (* Fonction pour gérer l'affichage et la navigation *)
-  let rec loop () =
-    (* Effacer la fenêtre *)
-    Graphics.clear_graph ();
+(* Fonction pour gérer l'affichage et la navigation *)
+let rec loop () =
+  (* Effacer la fenêtre *)
+  Graphics.clear_graph ();
 
-    (* Afficher les étapes cumulatives jusqu'à l'étape actuelle *)
-    display_cumulative_steps opts steps !current_step;
+  (* Afficher les étapes cumulatives jusqu'à l'étape actuelle *)
+  display_cumulative_steps opts steps !current_step;
 
-    (* Afficher les options clavier *)
-    display_options ();
+  (* Afficher les options clavier *)
+  display_options ();
 
-    (* Obtenir les coordonnées de la souris *)
-    let mouse_x, mouse_y = Graphics.mouse_pos () in
+  (* Obtenir les coordonnées de la souris *)
+  let mouse_x, mouse_y = Graphics.mouse_pos () in
 
-    (* Calculer les coordonnées de la souris par rapport au centre de l'écran *)
-    let center_x, center_y = get_center () in
-    let adjusted_x = float_of_int (mouse_x - center_x) in
-    let adjusted_y = float_of_int (center_y - mouse_y) in
+  (* Calculer les coordonnées de la souris par rapport au centre de l'écran *)
+  let center_x, center_y = get_center () in
+  let adjusted_x = float_of_int (mouse_x - center_x) in
+  let adjusted_y = float_of_int (center_y - mouse_y) in
 
-    (* Effacer les anciennes coordonnées affichées uniquement *)
-    Graphics.set_color (color_to_graphics (Option.get opts.background_color));  (* Utiliser la couleur d'arrière-plan pour "effacer" l'ancien texte *)
-    Graphics.fill_rect 10 10 200 20;  (* Effacer l'ancienne zone d'affichage des coordonnées *)
+  (* Effacer les anciennes coordonnées affichées uniquement *)
+  Graphics.set_color (color_to_graphics (Option.get opts.background_color));  (* Utiliser la couleur d'arrière-plan pour "effacer" l'ancien texte *)
+  Graphics.fill_rect 10 10 200 20;  (* Effacer l'ancienne zone d'affichage des coordonnées *)
 
-    (* Afficher les coordonnées de la souris ajustées *)
-    let text_color = 
-      match opts.foreground_color with
-      | Some color -> color_to_graphics color  
-      | None -> Graphics.black 
-    in
-    Graphics.set_color text_color;
-    Graphics.moveto 10 10;  (* Définir la position en haut à gauche *)
-    Graphics.draw_string (Printf.sprintf "Coord: (%.2f, %.2f)" adjusted_x adjusted_y);
+  (* Afficher les coordonnées de la souris ajustées *)
+  let text_color = 
+    match opts.foreground_color with
+    | Some color -> color_to_graphics color  
+    | None -> Graphics.black 
+  in
+  Graphics.set_color text_color;
+  Graphics.moveto 10 10;  (* Définir la position en haut à gauche *)
+  Graphics.draw_string (Printf.sprintf "Coord: (%.2f, %.2f)" adjusted_x adjusted_y);
 
-    (* Vérifier si une touche a été pressée *)
-    if Graphics.key_pressed () then
-      let key = Graphics.read_key () in
-      match key with
-      | 'n' when !current_step < total_steps - 1 -> (* Étape suivante *)
-        incr current_step;
-        loop ()
-      | 'p' when !current_step > 0 -> (* Étape précédente *)
-        decr current_step;
-        loop ()
-      | 'r' -> loop () (* Force le redimensionnement *)
-      | 'q' ->  Graphics.close_graph () (* Quitter *)
-      | _ -> loop () (* Continuer *)
-    else
-      (* Si aucune touche n'est pressée, on continue à actualiser la position de la souris *)
-      Unix.sleepf 0.05;
+  (* Vérifier si une touche a été pressée *)
+  if Graphics.key_pressed () then
+    let key = Graphics.read_key () in
+    match key with
+    | 'n' when !current_step < total_steps - 1 -> (* Étape suivante *)
+      incr current_step;
       loop ()
-  in 
-  
-  apply_colors opts;
+
+    | 'p' when !current_step > 0 -> (* Étape précédente *)
+      decr current_step;
+      loop ()
+
+    | 'r' -> loop () (* Force le redimensionnement *)
+
+    | 'q' ->  Graphics.close_graph () (* Quitter *)
+
+    | 'i' ->  (* Zoom in *)
+      zoom_factor := !zoom_factor *. 1.1;  (* Augmenter le facteur de zoom de 10% *)
+      loop ()
+
+    | 'o' ->  (* Zoom out *)
+      (* Limiter le dézoom pour ne pas dépasser 10% de l'échelle initiale *)
+      if !zoom_factor >= 1. then
+        zoom_factor := !zoom_factor /. 1.1;  (* Réduire le facteur de zoom de 10% *)
+      loop ()
+
+    | _ -> loop () (* Continuer *)
+  else
+    (* Si aucune touche n'est pressée, on continue à actualiser la position de la souris *)
+    Unix.sleepf 0.05;
+    loop ()
+
+  in
   loop ()
 
 
