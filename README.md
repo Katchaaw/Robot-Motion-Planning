@@ -1,6 +1,6 @@
 # PF5 Project
 
-## Installing '`opam`
+## Installing `opam`
 
 To get started, install the [`opam`](https://opam.ocaml.org/) package manager by following the instructions provided [here](https://opam.ocaml.org/doc/Install.html).
 
